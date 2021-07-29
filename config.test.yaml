@@ -1,0 +1,15 @@
+SERVER:
+  ADDRESS: 0.0.0.0
+  PORT: 7350
+
+DB:
+  DRIVER: postgres
+  HOST: 0.0.0.0
+  USER: gostarter
+  PASSWORD: gostarter
+  NAME: gostarter
+
+JWT:
+  SECRET: 5649e3d0-7ba4-411d-a721-202c1c626f5c
+  REFRESH_TOKEN_EXP: 3600
+  ACCESS_TOKEN_EXP: 900

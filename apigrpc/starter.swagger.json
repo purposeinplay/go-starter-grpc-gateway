@@ -1,0 +1,301 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "GoStarter API v1",
+    "version": "1.0",
+    "contact": {
+      "name": "Purpose in Play",
+      "url": "https://github.com/purposeinplay/go-starter",
+      "email": "support@purposeinplay.com.com"
+    }
+  },
+  "tags": [
+    {
+      "name": "GoStarter"
+    }
+  ],
+  "host": "https://backend-dev1-europe-west1-b.win.com/v1",
+  "schemes": [
+    "http"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/user": {
+      "get": {
+        "summary": "Returns a single user by ID.",
+        "operationId": "GoStarter_FindUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apigrpcFindUserResponse"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "default": "{\"code\": 13, \"message\": \"an error occurred\", \"details\": []}"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The id of the user.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "GoStarter"
+        ]
+      }
+    },
+    "/v1/user/healthcheck": {
+      "get": {
+        "summary": "Health checking that determines whether backend instance responds properly.",
+        "operationId": "GoStarter_Healthcheck",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "default": "{\"code\": 13, \"message\": \"an error occurred\", \"details\": []}"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "GoStarter"
+        ]
+      }
+    },
+    "/v1/users": {
+      "get": {
+        "summary": "Returns list of users",
+        "operationId": "GoStarter_FindUsers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apigrpcFindUsersResponse"
+            }
+          },
+          "401": {
+            "description": "Returned when the user is not authenticated.",
+            "schema": {
+              "default": "{\"code\": 16, \"message\": \"auth token is invalid\", \"details\": []}"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "default": "{\"code\": 13, \"message\": \"an error occurred\", \"details\": []}"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "GoStarter"
+        ],
+        "security": [
+          {
+            "BearerJwt": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Creates a new user",
+        "operationId": "GoStarter_CreateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apigrpcCreateUserResponse"
+            }
+          },
+          "400": {
+            "description": "",
+            "schema": {
+              "default": "{\"code\": 3, \"message\": \"could not create user\", \"details\": [{\"@type\": \"type.googleapis.com/user.apigrpc.StarterErrorResponse\", \"error\": {\"starter_error\": \"VALIDATION_ERROR\"}, \"message\": \"one or more fields are invalid\", \"trigger\": \"\", \"details\": {\"field_violations\": [{\"field\": \"Currency\", \"description\": \"Currency is a required field\"} ] } } ] }"
+            }
+          },
+          "401": {
+            "description": "Returned when the user is not authenticated.",
+            "schema": {
+              "default": "{\"code\": 16, \"message\": \"auth token is invalid\", \"details\": []}"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "default": "{\"code\": 13, \"message\": \"an error occurred\", \"details\": []}"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": ".user.apigrpc.StarterErrorResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apigrpcCreateUserRequest"
+            }
+          }
+        ],
+        "tags": [
+          "GoStarter"
+        ],
+        "security": [
+          {
+            "BearerJwt": []
+          }
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "apigrpcCreateUserRequest": {
+      "type": "object",
+      "example": {
+        "id": "b028f046-787c-4a3c-adfd-b838c15b9509",
+        "email": "hello@purposeinplay.com"
+      },
+      "properties": {
+        "email": {
+          "type": "string",
+          "title": "The email of the user"
+        }
+      },
+      "description": "Create a new user."
+    },
+    "apigrpcCreateUserResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/apigrpcUser",
+          "description": "The user entity."
+        }
+      },
+      "description": "Returns the created user."
+    },
+    "apigrpcFindUserResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/apigrpcUser",
+          "title": "The user entity"
+        }
+      },
+      "description": "Returns a single user."
+    },
+    "apigrpcFindUsersResponse": {
+      "type": "object",
+      "properties": {
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apigrpcUser"
+          },
+          "title": "The user response entity"
+        }
+      },
+      "title": "Returns list of users"
+    },
+    "apigrpcUser": {
+      "type": "object",
+      "example": {
+        "id": "bec95f6a-2e45-4a9a-bb92-314073acf23e",
+        "email": "hello@purposeinplay.com"
+      },
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The id of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email of the user."
+        }
+      },
+      "description": "Returns the user entity."
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "typeUrl": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "BearerJwt": {
+      "type": ""
+    }
+  },
+  "security": [
+    {
+      "BearerJwt": []
+    }
+  ],
+  "externalDocs": {
+    "description": "Win server documentation",
+    "url": "https://purposeinplay.com/docs"
+  }
+}

@@ -1,0 +1,245 @@
+syntax = "proto3";
+
+package starter.apigrpc;
+option go_package = "./;apigrpc";
+
+
+import "google/protobuf/empty.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "GoStarter API v1";
+    version: "1.0";
+    contact: {
+      name: "Purpose in Play";
+      url: "https://github.com/purposeinplay/go-starter";
+      email: "support@purposeinplay.com.com";
+    };
+  };
+  host: "https://backend-dev1-europe-west1-b.win.com/v1";
+  external_docs: {
+    url: "https://purposeinplay.com/docs";
+    description: "Win server documentation";
+  }
+  schemes: HTTP;
+  consumes: "application/json";
+  produces: "application/json";
+  security_definitions: {
+    security: {
+      // Made up security so we can apply "Bearer <JWT_TOKEN>"
+      key: "BearerJwt";
+      value: {
+        type: TYPE_INVALID;
+      };
+    }
+  }
+  // Default security definition.
+  security: {
+    security_requirement: {
+      key: "BearerJwt";
+      value: {
+      };
+    }
+  }
+
+  responses: {
+    key: "500";
+    value: {
+      description: "Internal server error";
+      schema: {
+        json_schema: {
+          default: "{\"code\": 13, \"message\": \"an error occurred\", \"details\": []}";
+        }
+      }
+    }
+  }
+};
+
+/**
+ * GoStarter is a set of flexible APIs that allows you to build cross-platform competitions into your games that drive engagement and increase monetization.
+ */
+service GoStarter {
+  // Health checking that determines whether backend instance responds properly.
+  rpc Healthcheck (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http).get = "/v1/user/healthcheck";
+  }
+
+  // Returns list of users
+  rpc FindUsers(google.protobuf.Empty) returns (FindUsersResponse) {
+    option (google.api.http) = {
+      get : "/v1/users"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BearerJwt";
+          value: {};
+        }
+      }
+      responses: {
+        key: "401";
+        value: {
+          description: "Returned when the user is not authenticated.";
+          schema: {
+            json_schema: {
+              default: "{\"code\": 16, \"message\": \"auth token is invalid\", \"details\": []}";
+            }
+          }
+        }
+      }
+    };
+  }
+
+  // Creates a new user
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {
+    option (google.api.http) = {
+      post : "/v1/users",
+      body: "*"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BearerJwt";
+          value: {};
+        }
+      }
+      responses: {
+        key: "400"
+        value: {
+          schema: {
+            json_schema: {
+              default: "{\"code\": 3, \"message\": \"could not create user\", \"details\": [{\"@type\": \"type.googleapis.com/user.apigrpc.StarterErrorResponse\", \"error\": {\"starter_error\": \"VALIDATION_ERROR\"}, \"message\": \"one or more fields are invalid\", \"trigger\": \"\", \"details\": {\"field_violations\": [{\"field\": \"Currency\", \"description\": \"Currency is a required field\"} ] } } ] }";
+            }
+          }
+        }
+      }
+
+      responses: {
+        key: "401";
+        value: {
+          description: "Returned when the user is not authenticated.";
+          schema: {
+            json_schema: {
+              default: "{\"code\": 16, \"message\": \"auth token is invalid\", \"details\": []}";
+            }
+          }
+        }
+      }
+
+      responses: {
+        key: "default";
+        value: {
+          schema: {
+            json_schema: {
+              ref: ".user.apigrpc.StarterErrorResponse";
+            }
+          }
+        }
+      }
+    };
+  }
+
+  // Returns a single user by ID.
+  rpc FindUser(FindUserRequest) returns (FindUserResponse) {
+    option (google.api.http) = {
+      get : "/v1/user"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+  }
+}
+
+// Returns the user entity.
+message User {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    example: "{\"id\": \"bec95f6a-2e45-4a9a-bb92-314073acf23e\", \"email\": \"hello@purposeinplay.com\"}"
+  };
+
+  // The id of the user.
+  string id = 1;
+
+  // The email of the user.
+  string email = 2;
+}
+
+// Returns list of users
+message FindUsersResponse {
+  // The user response entity
+  repeated User users = 1;
+}
+
+// Find user by id.
+message FindUserRequest {
+  // The id of the user
+  string id = 1;
+}
+
+// Returns a single user.
+message FindUserResponse {
+  // The user entity
+  User user = 1;
+}
+
+// Create a new user.
+message CreateUserRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    example: "{\"id\": \"b028f046-787c-4a3c-adfd-b838c15b9509\",\"email\": \"hello@purposeinplay.com\"}"
+  };
+
+  // The email of the user
+  string email = 1;
+}
+
+// Returns the created user.
+message CreateUserResponse {
+  // The user entity.
+  User user = 1;
+}
+
+message ErrorDetails {
+  // A message type used to describe a single bad request field.
+  message FieldViolation {
+    // A path leading to a field in the request body. The value will be a
+    // sequence of dot-separated identifiers that identify a protocol buffer
+    // field. E.g., "field_violations.field" would identify this field.
+    string field = 1;
+
+    // A description of why the request element is bad.
+    string description = 2;
+  }
+
+  // Describes all violations in a client request.
+  repeated FieldViolation field_violations = 1;
+}
+
+message ErrorCode {
+  enum Code {
+    TYPE_UNSPECIFIED = 0;
+    USER_NOT_FOUND = 1;
+    EMAIL_REQUIRED_ERROR = 2;
+  }
+
+  // The error code which should be one of "Error.Code" enums.
+  Code code = 1;
+}
+
+// Error returned by the starter service.
+message StarterErrorResponse {
+  // An enum value that indicates which error occurred.
+  ErrorCode error = 1;
+
+  // A human-readable description of the error.
+  string message = 2;
+
+  // The value that triggered the error.
+  string trigger = 3;
+
+  // Additional error details, which are returned by certain error codes. Most
+  // error codes do not include details.
+  ErrorDetails details = 5;
+}
