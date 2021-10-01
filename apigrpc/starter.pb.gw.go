@@ -150,7 +150,7 @@ func RegisterGoStarterHandlerServer(ctx context.Context, mux *runtime.ServeMux, 
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/starter.apigrpc.GoStarter/Healthcheck", runtime.WithHTTPPathPattern("/v1/user/healthcheck"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/starter.apigrpc.GoStarter/Healthcheck")
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -173,7 +173,7 @@ func RegisterGoStarterHandlerServer(ctx context.Context, mux *runtime.ServeMux, 
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/starter.apigrpc.GoStarter/FindUsers", runtime.WithHTTPPathPattern("/v1/users"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/starter.apigrpc.GoStarter/FindUsers")
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -196,7 +196,7 @@ func RegisterGoStarterHandlerServer(ctx context.Context, mux *runtime.ServeMux, 
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/starter.apigrpc.GoStarter/CreateUser", runtime.WithHTTPPathPattern("/v1/users"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/starter.apigrpc.GoStarter/CreateUser")
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -219,7 +219,7 @@ func RegisterGoStarterHandlerServer(ctx context.Context, mux *runtime.ServeMux, 
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/starter.apigrpc.GoStarter/FindUser", runtime.WithHTTPPathPattern("/v1/user"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/starter.apigrpc.GoStarter/FindUser")
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -281,7 +281,7 @@ func RegisterGoStarterHandlerClient(ctx context.Context, mux *runtime.ServeMux, 
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/starter.apigrpc.GoStarter/Healthcheck", runtime.WithHTTPPathPattern("/v1/user/healthcheck"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/starter.apigrpc.GoStarter/Healthcheck")
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -301,7 +301,7 @@ func RegisterGoStarterHandlerClient(ctx context.Context, mux *runtime.ServeMux, 
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/starter.apigrpc.GoStarter/FindUsers", runtime.WithHTTPPathPattern("/v1/users"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/starter.apigrpc.GoStarter/FindUsers")
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -321,7 +321,7 @@ func RegisterGoStarterHandlerClient(ctx context.Context, mux *runtime.ServeMux, 
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/starter.apigrpc.GoStarter/CreateUser", runtime.WithHTTPPathPattern("/v1/users"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/starter.apigrpc.GoStarter/CreateUser")
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -341,7 +341,7 @@ func RegisterGoStarterHandlerClient(ctx context.Context, mux *runtime.ServeMux, 
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/starter.apigrpc.GoStarter/FindUser", runtime.WithHTTPPathPattern("/v1/user"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/starter.apigrpc.GoStarter/FindUser")
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
