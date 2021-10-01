@@ -1,4 +1,4 @@
-package dialer
+package psql
 
 import (
 	// this is where we do the connections

@@ -11,6 +11,7 @@ github.com/fsnotify/fsnotify
 github.com/ghodss/yaml
 # github.com/go-chi/chi v1.5.4
 github.com/go-chi/chi
+github.com/go-chi/chi/middleware
 # github.com/golang/glog v0.0.0-20210429001901-424d2337a529
 github.com/golang/glog
 # github.com/golang/protobuf v1.5.2
@@ -109,7 +110,7 @@ github.com/pelletier/go-toml
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
-# github.com/purposeinplay/go-commons v0.0.0-20210721063021-31f225f0f4e4
+# github.com/purposeinplay/go-commons v0.0.0-20210928091142-3a3991566dd9
 ## explicit
 github.com/purposeinplay/go-commons/auth
 github.com/purposeinplay/go-commons/grpc

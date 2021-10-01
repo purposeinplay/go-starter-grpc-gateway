@@ -11,7 +11,7 @@ var RootCmd = &cobra.Command{
 	Short: "Skill-based PvP arcade games powered by blockchain.",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Run(APICmd, args)
+		cmd.Run(ServerCmd, args)
 	},
 }
 

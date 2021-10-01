@@ -96,25 +96,32 @@ func ReplaceLogger(l *zap.Logger) ServerOption {
 	})
 }
 
-var defaultServerOptions = serverOptions{
-	address:        "0.0.0.0",
-	port:           7350,
-	httpMiddleware: nil,
-	logger:         logs.NewLogger(),
-	muxOptions: []runtime.ServeMuxOption{
-		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.HTTPBodyMarshaler{
-			Marshaler: &runtime.JSONPb{
-				MarshalOptions: protojson.MarshalOptions{
-					UseProtoNames:   true,
-					UseEnumNumbers:  false,
-					EmitUnpopulated: true,
+func defaultServerOptions() (serverOptions, error) {
+	logger, err := logs.NewLogger()
+	if err != nil {
+		return serverOptions{}, err
+	}
+
+	return serverOptions{
+		address:        "0.0.0.0",
+		port:           7350,
+		httpMiddleware: nil,
+		logger:         logger,
+		muxOptions: []runtime.ServeMuxOption{
+			runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.HTTPBodyMarshaler{
+				Marshaler: &runtime.JSONPb{
+					MarshalOptions: protojson.MarshalOptions{
+						UseProtoNames:   true,
+						UseEnumNumbers:  false,
+						EmitUnpopulated: true,
+					},
+					UnmarshalOptions: protojson.UnmarshalOptions{
+						DiscardUnknown: true,
+					},
 				},
-				UnmarshalOptions: protojson.UnmarshalOptions{
-					DiscardUnknown: true,
-				},
-			},
-		}),
-	},
+			}),
+		},
+	}, nil
 }
 
 // A ServerOption sets options such as credentials, codec and keepalive parameters, etc.
@@ -129,8 +136,12 @@ type Server struct {
 }
 
 func NewServer(opt ...ServerOption) *Server {
+	opts, err := defaultServerOptions()
 
-	opts := defaultServerOptions
+	if err != nil {
+		opts.logger.Fatal("could not get server options", zap.Error(err))
+	}
+
 	for _, o := range opt {
 		o.apply(&opts)
 	}
@@ -160,9 +171,9 @@ func NewServer(opt ...ServerOption) *Server {
 	}()
 
 	// Register and start GRPC Gateway server.
-	dialAddr := fmt.Sprintf("127.0.0.1:%d", opts.port-1)
+	dialAddr := fmt.Sprintf("127.0.0.1:%d", opts.port)
 	if opts.address != "" {
-		dialAddr = fmt.Sprintf("%v:%d", opts.address, opts.port-1)
+		dialAddr = fmt.Sprintf("%v:%d", opts.address, opts.port)
 	}
 	opts.logger.Info("Starting gRPC gateway for HTTP requests", zap.String("gRPC gateway", dialAddr))
 	go func() {

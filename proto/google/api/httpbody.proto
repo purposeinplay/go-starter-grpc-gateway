@@ -20,10 +20,10 @@ package google.api;
 import "google/protobuf/any.proto";
 
 option cc_enable_arenas = true;
-option go_package = "google.golang.org/genproto/googleapis/api/httpbody;httpbody";
+option go_package = "google.golang.org/genproto/googleapis/ports/httpbody;httpbody";
 option java_multiple_files = true;
 option java_outer_classname = "HttpBodyProto";
-option java_package = "com.google.api";
+option java_package = "com.google.ports";
 option objc_class_prefix = "GAPI";
 
 // Message that represents an arbitrary HTTP body. It should only be used for

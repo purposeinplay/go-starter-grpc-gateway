@@ -1,4 +1,4 @@
-package api
+package ports
 
 import (
 	"context"
@@ -32,9 +32,12 @@ func (ts *StarterTestSuite) TestStarterAPI_FindUserWithUnauthenticated() {
 func (ts *StarterTestSuite) TestStarterAPI_FindUsers() {
 	ctx := context.Background()
 
+	authToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NzU5MDMwMS1iNWJjLTRkM2YtOWRmNS0zNjdhOWMzYjVjMmQiLCJuYW1lIjoiSm9obiBEb2UiLCJpYXQiOjE1MTYyMzkwMjJ9.KAEUKhHbWegoQMA3HHqBvP7KZ3oXn7wdaBDr42PQJ4U"
+	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+authToken)
+
 	user1 := user.User{
 		Base: domain.Base{
-			ID:             uuid.Parse("75a51bed-46e3-45db-906c-b3a8029e19fc"),
+			ID:             uuid.Parse("97590301-b5bc-4d3f-9df5-367a9c3b5c2d"),
 		},
 		Email:             "me@email.com",
 	}
@@ -50,7 +53,7 @@ func (ts *StarterTestSuite) TestStarterAPI_FindUsers() {
 
 	u := res.GetUsers()[0]
 
-	ts.Equal("75a51bed-46e3-45db-906c-b3a8029e19fc", u.Id)
+	ts.Equal("97590301-b5bc-4d3f-9df5-367a9c3b5c2d", u.Id)
 	ts.Equal("me@email.com", u.Email)
 }
 

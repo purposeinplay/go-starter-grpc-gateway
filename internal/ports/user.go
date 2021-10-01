@@ -1,21 +1,41 @@
-package api
+package ports
 
 import (
 	"context"
 	"errors"
+	"github.com/pborman/uuid"
+	"github.com/purposeinplay/go-commons/auth"
 	starterapi "github.com/purposeinplay/go-starter-grpc-gateway/apigrpc"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app/command"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app/query"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/domain/user"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func (a *API) FindUsers(ctx context.Context, _ *emptypb.Empty) (*starterapi.FindUsersResponse, error) {
-	users, err := a.app.Queries.FindUsers.Handle(ctx, query.FindUsersCmd{})
+func (a *grpcServer) FindUsers(ctx context.Context, _ *emptypb.Empty) (*starterapi.FindUsersResponse, error) {
+
+	md, _ := metadata.FromIncomingContext(ctx)
+
+	sign, err := auth.ExtractTokenFromMetadata(md)
+
+	if err != nil {
+		a.logger.Error("auth.ExtractTokenFromMetadata error", zap.Error(err))
+		return nil, status.Error(codes.Internal, "an error occurred")
+	}
+
+	claims, err := a.jwtManager.Verify(sign)
+
+	if err != nil {
+		a.logger.Error("jwtManager.Verify error", zap.Error(err))
+		return nil, status.Error(codes.Internal, "an error occurred")
+	}
+
+	users, err := a.app.Queries.FindUsers.Handle(ctx, query.FindUsersCmd{uuid.Parse(claims.Subject)})
 
 	if err != nil {
 		a.logger.Error("queries.FindUsers.Handle error", zap.Error(err))
@@ -27,7 +47,7 @@ func (a *API) FindUsers(ctx context.Context, _ *emptypb.Empty) (*starterapi.Find
 	return res, nil
 }
 
-func (a *API) CreateUser(ctx context.Context, req *starterapi.CreateUserRequest) (*starterapi.CreateUserResponse, error) {
+func (a *grpcServer) CreateUser(ctx context.Context, req *starterapi.CreateUserRequest) (*starterapi.CreateUserResponse, error) {
 	cmd := command.CreateUserCmd{
 		Email:          req.Email,
 	}
@@ -62,7 +82,7 @@ func (a *API) CreateUser(ctx context.Context, req *starterapi.CreateUserRequest)
 	return res, nil
 }
 
-func (a *API) FindUser(ctx context.Context, req *starterapi.FindUserRequest) (*starterapi.FindUserResponse, error) {
+func (a *grpcServer) FindUser(ctx context.Context, req *starterapi.FindUserRequest) (*starterapi.FindUserResponse, error) {
 	return &starterapi.FindUserResponse{User: &starterapi.User{
 		Id:    "123",
 		Email: "vlad@asd.com",

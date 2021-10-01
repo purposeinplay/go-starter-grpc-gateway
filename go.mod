@@ -12,7 +12,7 @@ require (
 	github.com/lib/pq v1.10.2
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
-	github.com/purposeinplay/go-commons v0.0.0-20210721063021-31f225f0f4e4
+	github.com/purposeinplay/go-commons v0.0.0-20210928091142-3a3991566dd9
 	github.com/rs/cors v1.8.0 // indirect
 	github.com/spf13/cast v1.4.0 // indirect
 	github.com/spf13/cobra v1.2.1

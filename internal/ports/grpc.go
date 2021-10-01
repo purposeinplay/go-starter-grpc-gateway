@@ -1,17 +1,11 @@
-package api
+package ports
 
 import (
 	"context"
 	"fmt"
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/repository"
-
 	grpccommons "github.com/purposeinplay/go-commons/grpc"
-
 	starterapi "github.com/purposeinplay/go-starter-grpc-gateway/apigrpc"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app"
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app/command"
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app/query"
-
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/purposeinplay/go-commons/auth"
@@ -20,8 +14,6 @@ import (
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 
-	"gorm.io/gorm"
-
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -29,27 +21,26 @@ import (
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/config"
 )
 
-type API struct {
+type grpcServer struct {
 	starterapi.UnimplementedGoStarterServer
 	config     *config.Config
 	logger     *zap.Logger
-	grpcServer *grpccommons.Server
+	jwtManager *auth.JWTManager
+	server *grpccommons.Server
 	app app.Application
 }
 
-func NewAPI(
+func NewGrpcServer(
 	ctx context.Context,
 	config *config.Config,
 	logger *zap.Logger,
-	db *gorm.DB,
+	app app.Application,
 	jwtManager *auth.JWTManager,
-) *API {
+) *grpcServer {
 
 	const servicePath = "/starter.apigrpc.GoStarter/"
 	authRoles := map[string][]string{
-		servicePath + "FindUsers":  {"user"},
 		servicePath + "FindUser": {"user"},
-		servicePath + "CreateUser": {"user"},
 	}
 
 	authInterceptor := auth.NewAuthInterceptor(logger, jwtManager, authRoles)
@@ -64,20 +55,11 @@ func NewAPI(
 		),
 	}
 
-	repo := repository.NewUserRepository(db)
-
-	api := &API{
-		app: app.Application{
-			Commands: app.Commands{
-				CreateUser: command.NewCreateUserHandler(logger, repo),
-			},
-			Queries:  app.Queries{
-				FindUsers: query.NewFindUsersHandler(logger, repo),
-				UserByID: query.NewUserById(logger, repo),
-			},
-		},
+	srv := &grpcServer{
+		app: app,
 		config:     config,
 		logger:     logger,
+		jwtManager: jwtManager,
 	}
 
 	options := []grpccommons.ServerOption{
@@ -87,7 +69,7 @@ func NewAPI(
 
 		grpccommons.RegisterServer(
 			func(server *grpc.Server) {
-				starterapi.RegisterGoStarterServer(server, api)
+				starterapi.RegisterGoStarterServer(server, srv)
 			},
 		),
 
@@ -106,15 +88,15 @@ func NewAPI(
 	}
 
 	grpcServer := grpccommons.NewServer(options...)
-	api.grpcServer = grpcServer
+	srv.server = grpcServer
 
-	return api
+	return srv
 }
 
-func (a *API) Stop() {
-	a.grpcServer.Stop()
+func (a *grpcServer) Stop() {
+	a.server.Stop()
 }
 
-func (a *API) Healthcheck(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
+func (a *grpcServer) Healthcheck(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
 }

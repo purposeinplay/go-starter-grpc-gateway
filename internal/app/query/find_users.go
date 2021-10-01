@@ -2,6 +2,8 @@ package query
 
 import (
 	"context"
+	"github.com/pborman/uuid"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/domain"
 
 	"go.uber.org/zap"
 
@@ -9,6 +11,7 @@ import (
 )
 
 type FindUsersCmd struct {
+	Id uuid.UUID
 }
 
 type FindUsersHandler struct {
@@ -27,5 +30,9 @@ func NewFindUsersHandler(
 }
 
 func (s *FindUsersHandler) Handle(ctx context.Context, q FindUsersCmd) (*[]user.User, error) {
-	return s.repo.Find(ctx, user.User{})
+	return s.repo.Find(ctx, user.User{
+		Base: domain.Base{
+			ID:        q.Id,
+		},
+	})
 }
