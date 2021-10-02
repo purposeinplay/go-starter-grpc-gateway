@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/purposeinplay/go-commons/logs"
-	"github.com/purposeinplay/go-starter-grpc-gateway/adapters/psql"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/adapters/psql"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/config"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"

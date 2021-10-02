@@ -11,3 +11,7 @@ image: ## Build the Docker image.
 .PHONY: test
 test: ## Run tests.
 	go test -p 1 -v $(CHECK_FILES)
+
+.PHONY: migrate-test
+migrate-test: ## Run migrations.
+	go run main.go migrate --config config.test.yaml

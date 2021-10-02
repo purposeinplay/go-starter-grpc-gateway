@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"github.com/purposeinplay/go-starter-grpc-gateway/adapters/psql"
+	psql2 "github.com/purposeinplay/go-starter-grpc-gateway/internal/adapters/psql"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app/command"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app/query"
@@ -12,7 +12,7 @@ import (
 )
 
 func NewApplication(ctx context.Context, logger *zap.Logger, config *config.Config) (app.Application, func() error) {
-	db, err := psql.Connect(config)
+	db, err := psql2.Connect(config)
 
 	if err != nil {
 		logger.Fatal("connecting to database: %+v", zap.Error(err))
@@ -30,7 +30,7 @@ func newApplication(
 	db *gorm.DB,
 ) app.Application{
 
-	userRepo := psql.NewUserRepository(db)
+	userRepo := psql2.NewUserRepository(db)
 
 	return app.Application{
 		Commands: app.Commands{
@@ -48,7 +48,7 @@ func NewTestApplication(
 	logger *zap.Logger,
 	config *config.Config,
 ) (app.Application, *gorm.DB) {
-	db, err := psql.Connect(config)
+	db, err := psql2.Connect(config)
 
 	if err != nil {
 		logger.Fatal("connecting to database: %+v", zap.Error(err))
