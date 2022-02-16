@@ -2,47 +2,47 @@ package query
 
 import (
 	"context"
-	"errors"
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/domain"
+	"fmt"
 
-	"github.com/pborman/uuid"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
-
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/domain/user"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/errors"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/uuid"
 )
 
-type UserByIdCmd struct {
-	Id string
+// UserByIDReadModel represents how the application is querying
+// a user.
+type UserByIDReadModel interface {
+	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 }
 
-type UserByIdHandler struct {
-	logger *zap.Logger
-	repo   user.UserRepository
+// UserByIDHandler holds the dependencies for querying a
+// user from the system.
+type UserByIDHandler struct {
+	readModel UserByIDReadModel
 }
 
-func NewUserById(
-	logger     *zap.Logger,
-	repo user.UserRepository,
-) UserByIdHandler {
-	return UserByIdHandler{
-		logger: logger,
-		repo: repo,
+// MustNewUserByIDHandler returns an initialized UserByIDHandler.
+func MustNewUserByIDHandler(
+	readModel UserByIDReadModel,
+) UserByIDHandler {
+	if readModel == nil {
+		panic(errors.NewInvalidError("nil read model"))
+	}
+
+	return UserByIDHandler{
+		readModel: readModel,
 	}
 }
 
-func (s *UserByIdHandler) First(ctx context.Context, q UserByIdCmd) (*user.User, error) {
-	t, err := s.repo.First(ctx, user.User{
-		Base:              domain.Base{
-			ID: uuid.Parse(q.Id),
-		},
-	})
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, user.ErrUserNotFound
-	} else if err != nil {
-		return nil, err
+// Handle queries a user from the system by
+// the given ID.
+func (s UserByIDHandler) Handle(
+	ctx context.Context,
+	id uuid.UUID,
+) (User, error) {
+	u, err := s.readModel.GetUserByID(ctx, id)
+	if err != nil {
+		return User{}, fmt.Errorf("read model: %w", err)
 	}
 
-	return t, nil
+	return u, nil
 }

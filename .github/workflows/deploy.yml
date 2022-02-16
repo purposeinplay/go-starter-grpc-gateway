@@ -1,0 +1,210 @@
+name: lint-test
+
+env:
+  PROJECT_ID: ${{ secrets.GKE_PROJECT }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+  IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
+  DB_INSTANCE: ${{ secrets.DB_INSTANCE }}
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - internal/**
+      - cmd/**
+      - config/**
+      - k8s/**
+      - workflows/**
+      - apigrpc/**
+      - vendor/**
+      - sql/**
+      - .github/**
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Get specific changed files
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v14.1
+        with:
+          files: |
+            ./internal/**
+
+      - name: Install Go
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1.17.1'
+
+      - name: Install Buf
+        uses: bufbuild/buf-setup-action@v0.7.0
+
+      - name: Buf lint
+        run: buf lint -v --config=buf.yaml --path=apigrpc
+
+      - name: LOC
+        uses: shadowmoose/GHA-LoC-Badge@1.0.0
+        id: badge
+        with:
+          debug: true
+          directory: ./
+          badge: ./output/badge.svg
+          patterns: 'internal/**/*.go'
+
+      - name: Run linter
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: golangci/golangci-lint-action@v2
+        with:
+          skip-go-installation: true
+          args: --timeout 5m
+
+      - name: Run unit and integration tests
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        run: make test-ci
+
+      - name: Upload coverage report
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.txt
+          flags: unittests,integrationtests
+
+      - name: Deploy to image-data branch
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          publish_dir: ./output
+          publish_branch: image-data
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Update Swagger Doc
+        uses: ActionwareIO/branch-push-action@action
+        with:
+          branch: swagger_ui
+          files: |
+            ./apigrpc/v1/wallee.swagger.json
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  migrate:
+    name: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Get specific changed files
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v14.1
+        with:
+          files: |
+            **/sql/**
+
+      - name: Install Go
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1.16' # The Go version to download (if necessary) and use.
+
+      - name: Start Cloud SQL Proxy Docker client
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: mattes/gce-cloudsql-proxy-action@v1
+        with:
+          creds: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          instance:  ${{ env.DB_INSTANCE }}
+
+      - name: Run migrations
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        run: |
+          go run main.go migrate --config=./config/gcloud.yaml
+
+  build-push-deploy:
+    name: build-push-deploy
+    needs: [lint-test,migrate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Auth Gcloud
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GKE_KUBECTL_SA }}
+
+      # Setup gcloud CLI
+      - name: Setup Gcloud
+        uses: google-github-actions/setup-gcloud@v0
+
+      # Get the GKE credentials, so we can deploy to the cluster
+      - name: Setup GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v0
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_ZONE }}
+
+      - name: Get the GKE credentials so we can deploy to the cluster
+        run: |-
+          gcloud container clusters get-credentials "$GKE_CLUSTER" --zone "$GKE_ZONE"
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v1
+
+      # Login into Github Registry
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{github.actor}}
+          password: ${{secrets.REGISTRY_PAT}}
+
+      # Build the application Docker image
+      - name: Build the Docker image
+        run: |
+          make build-docker-gcloud
+
+      # Push the application Docker image to Github Registry
+      - name: Push the Docker image
+        run: |
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+
+          # Change all uppercase to lowercase
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+
+          # Use Docker `latest` tag convention
+          [ "$VERSION" == "master" ] && VERSION=latest
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+
+          docker tag $IMAGE_NAME $IMAGE_ID:${GITHUB_SHA::7}
+          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+
+          docker push $IMAGE_ID:${GITHUB_SHA::7}
+          docker push $IMAGE_ID:$VERSION
+
+      - name: Update the K8s Image
+        run: |
+          cd k8s
+          kustomize edit set image ghcr.io/purposeinplay/$IMAGE_NAME:latest=ghcr.io/purposeinplay/$IMAGE_NAME:${GITHUB_SHA::7}
+
+      - name: Apply K8s changes
+        run: |
+          kubectl config view
+          cd k8s
+          kubectl apply -k .
