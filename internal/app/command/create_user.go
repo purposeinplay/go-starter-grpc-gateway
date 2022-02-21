@@ -2,44 +2,56 @@ package command
 
 import (
 	"context"
+	"fmt"
 
-	"go.uber.org/zap"
-
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/errors"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/uuid"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/domain/user"
 )
 
-type CreateUserCmd struct {
-	Email          string
+// CreateUser represents the data required
+// in order to add a new user into the system.
+type CreateUser struct {
+	ID    uuid.UUID
+	Email string
 }
 
+// CreateUserHandler holds the dependencies for adding a
+// new user to the system.
 type CreateUserHandler struct {
-	logger            *zap.Logger
-	repo              user.UserRepository
+	userRepo user.Repository
 }
 
-func NewCreateUserHandler(
-	logger     *zap.Logger,
-	repo user.UserRepository,
+// MustNewCreateUserHandler returns an initialized CreateUserHandler.
+func MustNewCreateUserHandler(
+	userRepo user.Repository,
 ) CreateUserHandler {
+	if userRepo == nil {
+		panic(errors.NewInvalidError("nil user repo"))
+	}
+
 	return CreateUserHandler{
-		logger: logger,
-		repo: repo,
+		userRepo: userRepo,
 	}
 }
 
-func (s *CreateUserHandler) Handle(ctx context.Context, cmd CreateUserCmd) (*user.User, error) {
-
-	if cmd.Email == "" {
-		return nil, user.ErrEmailIsRequired
-	}
-
-	u, err := s.repo.Create(ctx, &user.User{
-		Email:             cmd.Email,
-	})
-
+// Handle executes the CreateUser command.
+func (s *CreateUserHandler) Handle(
+	ctx context.Context,
+	cmd CreateUser,
+) error {
+	newUser, err := user.New(
+		cmd.ID,
+		cmd.Email,
+	)
 	if err != nil {
-		return nil, user.ErrCouldNotCreateUser
+		return fmt.Errorf("new user: %w", err)
 	}
 
-	return u, nil
+	err = s.userRepo.CreateUser(ctx, newUser)
+	if err != nil {
+		return fmt.Errorf("create user: %w", err)
+	}
+
+	return nil
 }

@@ -1,27 +1,32 @@
 package psql
 
 import (
-	// this is where we do the connections
 
+	// this is where we do the connections.
 	"fmt"
+	"gorm.io/driver/postgres"
 
 	"github.com/cenkalti/backoff/v4"
 	_ "github.com/lib/pq"
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/config"
-	"gorm.io/driver/postgres"
-	_ "gorm.io/driver/postgres"
-	"gorm.io/gorm/logger"
-
 	"github.com/pkg/errors"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/config"
+	_ "gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-// Connect will connect to that repository engine
-func Connect(config *config.Config) (*gorm.DB, error) {
+// Connect will connect to that repository engine.
+func Connect(cfg *config.Config) (*gorm.DB, error) {
 	var db *gorm.DB
 
 	operation := func() error {
-		url := fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable", config.DB.HOST, config.DB.USER, config.DB.PASSWORD, config.DB.NAME)
+		url := fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s sslmode=disable",
+			cfg.DB.HOST,
+			cfg.DB.USER,
+			cfg.DB.PASSWORD,
+			cfg.DB.NAME,
+		)
 		conn, err := gorm.Open(postgres.Open(url), &gorm.Config{})
 		db = conn
 
@@ -32,8 +37,12 @@ func Connect(config *config.Config) (*gorm.DB, error) {
 		return nil
 	}
 
-	err := backoff.Retry(operation, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5))
+	const maxRetries = 5
 
+	err := backoff.Retry(
+		operation,
+		backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +62,7 @@ func Connect(config *config.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
-// Migrate runs the gorm migration for all models
+// Migrate runs the gorm migration for all models.
 func Migrate(db *gorm.DB, allModels []interface{}) error {
 	if err := db.AutoMigrate(allModels...); err != nil {
 		return err

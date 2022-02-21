@@ -28,12 +28,12 @@
     "/v1/user": {
       "get": {
         "summary": "Returns a single user by ID.",
-        "operationId": "GoStarter_FindUser",
+        "operationId": "GoStarter_GetUser",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apigrpcFindUserResponse"
+              "$ref": "#/definitions/apigrpcGetUserResponse"
             }
           },
           "500": {
@@ -212,16 +212,6 @@
       },
       "description": "Returns the created user."
     },
-    "apigrpcFindUserResponse": {
-      "type": "object",
-      "properties": {
-        "user": {
-          "$ref": "#/definitions/apigrpcUser",
-          "title": "The user entity"
-        }
-      },
-      "description": "Returns a single user."
-    },
     "apigrpcFindUsersResponse": {
       "type": "object",
       "properties": {
@@ -234,6 +224,16 @@
         }
       },
       "title": "Returns list of users"
+    },
+    "apigrpcGetUserResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/apigrpcUser",
+          "title": "The user entity"
+        }
+      },
+      "description": "Returns a single user."
     },
     "apigrpcUser": {
       "type": "object",
@@ -256,14 +256,11 @@
     "protobufAny": {
       "type": "object",
       "properties": {
-        "typeUrl": {
+        "@type": {
           "type": "string"
-        },
-        "value": {
-          "type": "string",
-          "format": "byte"
         }
-      }
+      },
+      "additionalProperties": {}
     },
     "rpcStatus": {
       "type": "object",

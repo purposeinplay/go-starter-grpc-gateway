@@ -15,3 +15,7 @@ test: ## Run tests.
 .PHONY: migrate-test
 migrate-test: ## Run migrations.
 	go run main.go migrate --config config.test.yaml
+
+.PHONY: check
+lint:
+	golangci-lint run --build-tags=dev

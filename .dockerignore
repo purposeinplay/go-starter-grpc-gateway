@@ -1,0 +1,5 @@
+.github
+.idea
+.d8t
+terraform
+coverage.txt

@@ -144,7 +144,7 @@ service GoStarter {
   }
 
   // Returns a single user by ID.
-  rpc FindUser(FindUserRequest) returns (FindUserResponse) {
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
     option (google.api.http) = {
       get : "/v1/user"
     };
@@ -174,13 +174,13 @@ message FindUsersResponse {
 }
 
 // Find user by id.
-message FindUserRequest {
+message GetUserRequest {
   // The id of the user
   string id = 1;
 }
 
 // Returns a single user.
-message FindUserResponse {
+message GetUserResponse {
   // The user entity
   User user = 1;
 }
@@ -201,45 +201,17 @@ message CreateUserResponse {
   User user = 1;
 }
 
-message ErrorDetails {
-  // A message type used to describe a single bad request field.
-  message FieldViolation {
-    // A path leading to a field in the request body. The value will be a
-    // sequence of dot-separated identifiers that identify a protocol buffer
-    // field. E.g., "field_violations.field" would identify this field.
-    string field = 1;
-
-    // A description of why the request element is bad.
-    string description = 2;
+// Data returned in the Error Details.
+message ErrorResponse {
+  enum ErrorCode {
+    ERROR_CODE_UNSPECIFIED = 0;
+    ERROR_CODE_EMAIL_NOT_PROVIDED = 1;
+    ERROR_CODE_NOT_ENOUGH_BALANCE = 2;
   }
 
-  // Describes all violations in a client request.
-  repeated FieldViolation field_violations = 1;
-}
-
-message ErrorCode {
-  enum Code {
-    TYPE_UNSPECIFIED = 0;
-    USER_NOT_FOUND = 1;
-    EMAIL_REQUIRED_ERROR = 2;
-  }
-
-  // The error code which should be one of "Error.Code" enums.
-  Code code = 1;
-}
-
-// Error returned by the starter service.
-message StarterErrorResponse {
   // An enum value that indicates which error occurred.
-  ErrorCode error = 1;
+  ErrorCode error_code = 1;
 
-  // A human-readable description of the error.
+  // A field containing extra details about the error
   string message = 2;
-
-  // The value that triggered the error.
-  string trigger = 3;
-
-  // Additional error details, which are returned by certain error codes. Most
-  // error codes do not include details.
-  ErrorDetails details = 5;
 }

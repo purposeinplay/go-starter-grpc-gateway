@@ -26,7 +26,7 @@ type GoStarterClient interface {
 	// Creates a new user
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*CreateUserResponse, error)
 	// Returns a single user by ID.
-	FindUser(ctx context.Context, in *FindUserRequest, opts ...grpc.CallOption) (*FindUserResponse, error)
+	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
 }
 
 type goStarterClient struct {
@@ -64,9 +64,9 @@ func (c *goStarterClient) CreateUser(ctx context.Context, in *CreateUserRequest,
 	return out, nil
 }
 
-func (c *goStarterClient) FindUser(ctx context.Context, in *FindUserRequest, opts ...grpc.CallOption) (*FindUserResponse, error) {
-	out := new(FindUserResponse)
-	err := c.cc.Invoke(ctx, "/starter.apigrpc.GoStarter/FindUser", in, out, opts...)
+func (c *goStarterClient) GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error) {
+	out := new(GetUserResponse)
+	err := c.cc.Invoke(ctx, "/starter.apigrpc.GoStarter/GetUser", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ type GoStarterServer interface {
 	// Creates a new user
 	CreateUser(context.Context, *CreateUserRequest) (*CreateUserResponse, error)
 	// Returns a single user by ID.
-	FindUser(context.Context, *FindUserRequest) (*FindUserResponse, error)
+	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
 	mustEmbedUnimplementedGoStarterServer()
 }
 
@@ -101,8 +101,8 @@ func (UnimplementedGoStarterServer) FindUsers(context.Context, *emptypb.Empty) (
 func (UnimplementedGoStarterServer) CreateUser(context.Context, *CreateUserRequest) (*CreateUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateUser not implemented")
 }
-func (UnimplementedGoStarterServer) FindUser(context.Context, *FindUserRequest) (*FindUserResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method FindUser not implemented")
+func (UnimplementedGoStarterServer) GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
 }
 func (UnimplementedGoStarterServer) mustEmbedUnimplementedGoStarterServer() {}
 
@@ -171,20 +171,20 @@ func _GoStarter_CreateUser_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GoStarter_FindUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FindUserRequest)
+func _GoStarter_GetUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GoStarterServer).FindUser(ctx, in)
+		return srv.(GoStarterServer).GetUser(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/starter.apigrpc.GoStarter/FindUser",
+		FullMethod: "/starter.apigrpc.GoStarter/GetUser",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GoStarterServer).FindUser(ctx, req.(*FindUserRequest))
+		return srv.(GoStarterServer).GetUser(ctx, req.(*GetUserRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -209,8 +209,8 @@ var GoStarter_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _GoStarter_CreateUser_Handler,
 		},
 		{
-			MethodName: "FindUser",
-			Handler:    _GoStarter_FindUser_Handler,
+			MethodName: "GetUser",
+			Handler:    _GoStarter_GetUser_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

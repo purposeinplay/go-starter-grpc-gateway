@@ -8,7 +8,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config the config.json file should be set at the root level
+// Config the config.json file should be set at the root level.
+// nolint: revive // reports nested structs not allowed. TODO: fix
 type Config struct {
 	SERVER struct {
 		Port    int    `mapstructure:"port"`
@@ -30,8 +31,10 @@ type Config struct {
 	}
 }
 
+// ConfigFile stores the config filepath.
 var ConfigFile string
 
+// LoadTestConfig loads the test config from the filesystem.
 func LoadTestConfig(path string) (*Config, error) {
 	cmd := &cobra.Command{}
 	cmd.Flags().StringVar(&ConfigFile, "config", path, "Config file")
@@ -39,10 +42,9 @@ func LoadTestConfig(path string) (*Config, error) {
 	return LoadConfig(cmd)
 }
 
-// LoadConfig should load and unmarshal the config file
+// LoadConfig should load and unmarshal the config file.
 func LoadConfig(cmd *cobra.Command) (*Config, error) {
 	err := viper.BindPFlags(cmd.Flags())
-
 	if err != nil {
 		return nil, err
 	}
