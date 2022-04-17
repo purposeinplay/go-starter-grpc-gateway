@@ -149,17 +149,17 @@ func NewGrpcTestServer(
 
 // ListenAndServe wraps the underlying
 // grpccommons.Server ListenAndServe method.
-func (a *Server) ListenAndServe() error {
-	return a.server.ListenAndServe()
+func (s *Server) ListenAndServe() error {
+	return s.server.ListenAndServe()
 }
 
 // Close terminates the server.
-func (a *Server) Close() error {
-	return a.server.Close()
+func (s *Server) Close() error {
+	return s.server.Close()
 }
 
 // Healthcheck endpoint.
-func (a *Server) Healthcheck(
+func (s *Server) Healthcheck(
 	context.Context,
 	*emptypb.Empty,
 ) (*emptypb.Empty, error) {
@@ -167,7 +167,7 @@ func (a *Server) Healthcheck(
 }
 
 // Check is used to verify if the API is able to accept requests.
-func (a *Server) Check(
+func (s *Server) Check(
 	context.Context,
 	*grpc_health_v1.HealthCheckRequest,
 ) (*grpc_health_v1.HealthCheckResponse, error) {
@@ -177,23 +177,23 @@ func (a *Server) Check(
 }
 
 // Watch works like Check, but it creates an ongoing connection.
-func (a *Server) Watch(
+func (s *Server) Watch(
 	*grpc_health_v1.HealthCheckRequest,
 	grpc_health_v1.Health_WatchServer,
 ) error {
 	return status.Error(codes.Unimplemented, "unimplemented")
 }
 
-func (a *Server) registerGrpcServer(server *grpc.Server) {
-	startergrpc.RegisterGoStarterServer(server, a)
-	grpc_health_v1.RegisterHealthServer(server, a)
+func (s *Server) registerGrpcServer(server *grpc.Server) {
+	startergrpc.RegisterGoStarterServer(server, s)
+	grpc_health_v1.RegisterHealthServer(server, s)
 }
 
-func (a *Server) registerGatewayServer(
+func (s *Server) registerGatewayServer(
 	mux *runtime.ServeMux,
 	dialOptions []grpc.DialOption,
 ) error {
-	host, port, err := parseHostPort(a.cfg.SERVER.Address)
+	host, port, err := parseHostPort(s.cfg.SERVER.Address)
 	if err != nil {
 		return fmt.Errorf("could not parse server address: %w", err)
 	}
