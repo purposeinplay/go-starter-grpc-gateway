@@ -1,227 +1,274 @@
 package grpc
 
 import (
-	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net"
-	"net/http"
-
-	"github.com/purposeinplay/go-commons/logs"
-
-	"github.com/rs/cors"
-
-	"github.com/go-chi/chi"
-
-	"go.uber.org/zap"
+	"sync"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-
+	"github.com/oklog/run"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// funcServerOption wraps a function that modifies serverOptions into an
-// implementation of the ServerOption interface.
-type funcServerOption struct {
-	f func(*serverOptions)
-}
+// ErrServerClosed indicates that the operation is now illegal because of
+// the server has been closed.
+var ErrServerClosed = errors.New("go-commons.grpc: server closed")
 
-func (fdo *funcServerOption) apply(do *serverOptions) {
-	fdo.f(do)
-}
-
-func newFuncServerOption(f func(*serverOptions)) *funcServerOption {
-	return &funcServerOption{
-		f: f,
+type (
+	// the server interface defines basic methods for starting
+	// and stopping a server.
+	server interface {
+		io.Closer
+		Serve(listener net.Listener) error
 	}
+
+	// serverWithListener represents an implemented server
+	// that can be started and stopped.
+	serverWithListener struct {
+		server       server
+		listener     net.Listener
+		running      bool
+		runningMutex sync.Mutex
+	}
+
+	// registerServerFunc defines how we can register
+	// a grpc service to a grpc server.
+	registerServerFunc func(server *grpc.Server)
+
+	// registerGatewayFunc defines how we can register
+	// a grpc service to a gateway server.
+	registerGatewayFunc func(
+		mux *runtime.ServeMux,
+		dialOptions []grpc.DialOption,
+	) error
+)
+
+// ListenAndServe accepts incoming connections on the listener
+// available in the struct.
+func (s *serverWithListener) ListenAndServe() error {
+	s.runningMutex.Lock()
+
+	s.running = true
+
+	s.runningMutex.Unlock()
+
+	return s.server.Serve(s.listener)
 }
 
-type serverOptions struct {
-	address           string
-	port              int
-	logger            *zap.Logger
-	grpcServerOptions []grpc.ServerOption
-	muxOptions        []runtime.ServeMuxOption
-	httpMiddleware    chi.Middlewares
-	registerServer    func(server *grpc.Server)
-	registerGateway   func(mux *runtime.ServeMux, dialOptions []grpc.DialOption)
-}
+// Close stops the seerver gracefully.
+func (s *serverWithListener) Close() error {
+	s.runningMutex.Lock()
+	defer s.runningMutex.Unlock()
 
-func Address(a string) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
-		o.address = a
-	})
-}
+	if !s.running {
+		return nil
+	}
 
-func WithPort(a int) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
-		o.port = a
-	})
-}
-
-func WithGrpcServerOptions(opts []grpc.ServerOption) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
-		o.grpcServerOptions = opts
-	})
-}
-
-func WithMuxOptions(opts []runtime.ServeMuxOption) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
-		o.muxOptions = opts
-	})
-}
-
-func HttpMiddleware(mw chi.Middlewares) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
-		o.httpMiddleware = mw
-	})
-}
-
-func RegisterServer(f func(server *grpc.Server)) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
-		o.registerServer = f
-	})
-}
-
-func RegisterGateway(f func(mux *runtime.ServeMux, dialOptions []grpc.DialOption)) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
-		o.registerGateway = f
-	})
-}
-
-func ReplaceLogger(l *zap.Logger) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
-		o.logger = l
-	})
-}
-
-func defaultServerOptions() (serverOptions, error) {
-	logger, err := logs.NewLogger()
+	err := s.server.Close()
 	if err != nil {
-		return serverOptions{}, err
+		return err
 	}
 
-	return serverOptions{
-		address:        "0.0.0.0",
-		port:           7350,
-		httpMiddleware: nil,
-		logger:         logger,
-		muxOptions: []runtime.ServeMuxOption{
-			runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.HTTPBodyMarshaler{
-				Marshaler: &runtime.JSONPb{
-					MarshalOptions: protojson.MarshalOptions{
-						UseProtoNames:   true,
-						UseEnumNumbers:  false,
-						EmitUnpopulated: true,
-					},
-					UnmarshalOptions: protojson.UnmarshalOptions{
-						DiscardUnknown: true,
-					},
-				},
-			}),
-		},
-	}, nil
+	return nil
 }
 
-// A ServerOption sets options such as credentials, codec and keepalive parameters, etc.
-type ServerOption interface {
-	apply(*serverOptions)
+type debugLogger interface {
+	Debug(msg string, fields ...zap.Field)
 }
 
+// Server holds the grpc and gateway underlying servers.
+// It starts and stops both of them together.
+// In case one of the server fails the other one is closed.
 type Server struct {
-	grpcServer        *grpc.Server
-	GrpcGatewayServer *http.Server
-	opts              serverOptions
+	grpcServerWithListener        *serverWithListener
+	grpcGatewayServerWithListener *serverWithListener
+
+	debug  bool
+	logger debugLogger
+
+	mu     sync.Mutex
+	closed bool
 }
 
-func NewServer(opt ...ServerOption) *Server {
-	opts, err := defaultServerOptions()
-
-	if err != nil {
-		opts.logger.Fatal("could not get server options", zap.Error(err))
-	}
+// NewServer creates Server with both the grpc server and,
+// if it's the case, the gateway server.
+//
+// The servers have not started to accept requests yet.
+func NewServer(opt ...ServerOption) (*Server, error) {
+	opts := defaultServerOptions()
 
 	for _, o := range opt {
 		o.apply(&opts)
 	}
 
-	grpcServer := grpc.NewServer(opts.grpcServerOptions...)
+	aggregatorServer := new(Server)
 
-	server := &Server{
-		opts:       opts,
-		grpcServer: grpcServer,
+	err := setDebugLogger(
+		opts.debugLogger,
+		aggregatorServer,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("set debugLogger: %w", err)
 	}
 
-	reflection.Register(grpcServer)
-	opts.registerServer(grpcServer)
-
-	// Register and start GRPC server.
-	opts.logger.Info("Starting gRPC server", zap.Int("port", opts.port-1))
-	go func() {
-		listen, err := net.Listen("tcp", fmt.Sprintf("%v:%v", opts.address, opts.port-1))
-		if err != nil {
-			opts.logger.Fatal("gRPC server listener failed to start", zap.Error(err))
-		}
-
-		err = grpcServer.Serve(listen)
-		if err != nil {
-			opts.logger.Fatal("gRPC server listener failed", zap.Error(err))
-		}
-	}()
-
-	// Register and start GRPC Gateway server.
-	dialAddr := fmt.Sprintf("127.0.0.1:%d", opts.port)
-	if opts.address != "" {
-		dialAddr = fmt.Sprintf("%v:%d", opts.address, opts.port)
+	grpcServerWithListener, err := newGRPCServerWithListener(
+		opts.grpcListener,
+		opts.address,
+		opts.tracing,
+		opts.grpcServerOptions,
+		opts.unaryServerInterceptors,
+		opts.registerServer,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("new gRPC server: %w", err)
 	}
-	opts.logger.Info("Starting gRPC gateway for HTTP requests", zap.String("gRPC gateway", dialAddr))
-	go func() {
-		grpcGatewayMux := runtime.NewServeMux(
-			opts.muxOptions...,
-		)
 
-		dialOptions := []grpc.DialOption{grpc.WithInsecure()}
+	aggregatorServer.grpcServerWithListener = grpcServerWithListener
 
-		opts.registerGateway(grpcGatewayMux, dialOptions)
+	// return here if a gateway server is not wanted
+	if !opts.gateway {
+		return aggregatorServer, nil
+	}
 
-		listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", opts.address, opts.port))
+	grpcGatewayServer, err := newGatewayServerWithListener(
+		opts.muxOptions,
+		opts.tracing,
+		opts.registerGateway,
+		opts.address,
+		opts.httpMiddlewares,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("new gRPC gateway server: %w", err)
+	}
 
-		if err != nil {
-			opts.logger.Fatal("API server gateway listener failed to start", zap.Error(err))
-		}
+	aggregatorServer.grpcGatewayServerWithListener = grpcGatewayServer
 
-		corsHandler := cors.New(cors.Options{
-			AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE"},
-			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
-			ExposedHeaders:   []string{"Link", "X-Total-Count"},
-			AllowCredentials: true,
-		})
-
-		r := chi.NewRouter()
-		r.Use(opts.httpMiddleware...)
-		r.Use(corsHandler.Handler)
-		r.Get("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })
-		r.Mount("/", grpcGatewayMux)
-
-		server.GrpcGatewayServer = &http.Server{
-			Handler: r,
-		}
-
-		err = server.GrpcGatewayServer.Serve(listener)
-		if err != nil && err != http.ErrServerClosed {
-			opts.logger.Fatal("API server gateway listener failed", zap.Error(err))
-		}
-	}()
-
-	return server
+	return aggregatorServer, nil
 }
 
-func (s *Server) Stop() {
-	// 1. Stop GRPC Gateway server first as it sits above GRPC server. This also closes the underlying listener.
-	if err := s.GrpcGatewayServer.Shutdown(context.Background()); err != nil {
-		s.opts.logger.Error("API server gateway listener shutdown failed", zap.Error(err))
+func setDebugLogger(debugLogger debugLogger, server *Server) error {
+	if debugLogger == nil {
+		return nil
 	}
-	// 2. Stop GRPC server. This also closes the underlying listener.
-	s.grpcServer.GracefulStop()
+
+	server.debug = true
+	server.logger = debugLogger
+
+	return nil
+}
+
+// ListenAndServe starts accepting incoming connections
+// on both servers.
+// If one of the servers encounters an error, both are stopped.
+func (s *Server) ListenAndServe() error {
+	s.mu.Lock()
+
+	if s.closed {
+		return ErrServerClosed
+	}
+
+	var g run.Group
+
+	g.Add(
+		s.runGRPCServer,
+		func(err error) {
+			_ = s.grpcServerWithListener.Close()
+		},
+	)
+
+	// start gateway server.
+	if s.grpcGatewayServerWithListener != nil {
+		g.Add(
+			s.runGatewayServer,
+			func(err error) {
+				_ = s.grpcGatewayServerWithListener.Close()
+			},
+		)
+	}
+
+	s.mu.Unlock()
+
+	err := g.Run()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Server) runGRPCServer() error {
+	s.logDebug(
+		"starting gRPC server",
+		zap.String(
+			"address",
+			s.grpcServerWithListener.listener.Addr().String(),
+		),
+	)
+
+	return s.grpcServerWithListener.ListenAndServe()
+}
+
+func (s *Server) closeGRPCServer() error {
+	s.logDebug("close grpc server")
+	defer s.logDebug("grpc server done")
+
+	return s.grpcServerWithListener.Close()
+}
+
+func (s *Server) runGatewayServer() error {
+	s.logDebug(
+		"starting gRPC gateway server for HTTP requests",
+		zap.String(
+			"address",
+			s.grpcGatewayServerWithListener.listener.Addr().String(),
+		),
+	)
+
+	return s.grpcGatewayServerWithListener.ListenAndServe()
+}
+
+func (s *Server) closeGatewayServer() error {
+	s.logDebug("close gateway server")
+	defer s.logDebug("gateway server done")
+
+	return s.grpcGatewayServerWithListener.Close()
+}
+
+// Close closes both underlying servers.
+// Safe to use concurrently and can be called multiple times.
+func (s *Server) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed {
+		return nil
+	}
+
+	// 1. Stop GRPC Gateway server first as it sits above GRPC server.
+	// This also closes the underlying grpcListener.
+	if s.grpcGatewayServerWithListener != nil {
+		err := s.closeGatewayServer()
+		if err != nil {
+			return fmt.Errorf("close gateway server: %w", err)
+		}
+	}
+
+	// 2. Stop GRPC server. This also closes the underlying grpcListener.
+	err := s.closeGRPCServer()
+	if err != nil {
+		return fmt.Errorf("close grpc server: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Server) logDebug(msg string, fields ...zap.Field) {
+	if !s.debug {
+		return
+	}
+
+	s.logger.Debug(msg, fields...)
 }

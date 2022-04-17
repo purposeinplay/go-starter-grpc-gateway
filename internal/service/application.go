@@ -26,12 +26,17 @@ func NewApplication(
 		logger.Fatal("connecting to database: %+v", zap.Error(err))
 	}
 
-	return newDefaultApplication(ctx, logger, cfg, db), func() error {
-		return nil
-	}
+	return newApplication(
+			ctx,
+			logger,
+			cfg,
+			db,
+		), func() error {
+			return nil
+		}
 }
 
-func newDefaultApplication(
+func newApplication(
 	_ context.Context,
 	_ *zap.Logger,
 	_ *config.Config,
@@ -55,12 +60,7 @@ func NewTestApplication(
 	ctx context.Context,
 	logger *zap.Logger,
 	cfg *config.Config,
-) (app.Application, *gorm.DB) {
-	db, err := psql.Connect(cfg)
-	if err != nil {
-		logger.Fatal("connecting to database: %+v", zap.Error(err))
-		panic(err)
-	}
-
-	return newDefaultApplication(ctx, logger, cfg, db), db
+	db *gorm.DB,
+) app.Application {
+	return newApplication(ctx, logger, cfg, db)
 }

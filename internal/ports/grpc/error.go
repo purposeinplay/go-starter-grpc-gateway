@@ -1,6 +1,6 @@
 package grpc
 
-// nolint: staticcheck // reports the github proto repo to be deprecated
+
 // and to use the google.golang.org one,
 // but I don't know how to change this repo in the generate go files.
 import (
@@ -134,4 +134,14 @@ func (s *Server) reportErr(err error) error {
 	}
 
 	return nil
+}
+
+func (s *Server) handlePanicRecover(p interface{}) error {
+	s.logPanic(p)
+
+	return status.Error(codes.Internal, "internal error.")
+}
+
+func (s *Server) logPanic(p interface{}) {
+	s.logger.Error("grpc panic", zap.Any("cause", p))
 }

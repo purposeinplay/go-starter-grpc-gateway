@@ -1,0 +1,16 @@
+language: go
+go:
+  - "1.11.x"
+  - master
+before_install:
+  - sudo service mysql stop
+  - sudo /etc/init.d/postgresql stop
+  - go get -t -v ./...
+script:
+  - go test -v --race ./...
+install: true
+sudo: required
+services:
+  - docker
+env:
+  - GO111MODULE=on

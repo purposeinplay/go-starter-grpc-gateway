@@ -3,7 +3,7 @@ package schema
 import (
 	"crypto/sha1"
 	"encoding/hex"
-	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -13,6 +13,7 @@ import (
 // Namer namer interface
 type Namer interface {
 	TableName(table string) string
+	SchemaName(table string) string
 	ColumnName(table, column string) string
 	JoinTableName(joinTable string) string
 	RelationshipFKName(Relationship) string
@@ -39,6 +40,16 @@ func (ns NamingStrategy) TableName(str string) string {
 		return ns.TablePrefix + ns.toDBName(str)
 	}
 	return ns.TablePrefix + inflection.Plural(ns.toDBName(str))
+}
+
+// SchemaName generate schema name from table name, don't guarantee it is the reverse value of TableName
+func (ns NamingStrategy) SchemaName(table string) string {
+	table = strings.TrimPrefix(table, ns.TablePrefix)
+
+	if ns.SingularTable {
+		return ns.toSchemaName(table)
+	}
+	return ns.toSchemaName(inflection.Singular(table))
 }
 
 // ColumnName convert string to column name
@@ -74,16 +85,16 @@ func (ns NamingStrategy) IndexName(table, column string) string {
 }
 
 func (ns NamingStrategy) formatName(prefix, table, name string) string {
-	formattedName := strings.Replace(strings.Join([]string{
+	formattedName := strings.ReplaceAll(strings.Join([]string{
 		prefix, table, name,
-	}, "_"), ".", "_", -1)
+	}, "_"), ".", "_")
 
 	if utf8.RuneCountInString(formattedName) > 64 {
 		h := sha1.New()
 		h.Write([]byte(formattedName))
 		bs := h.Sum(nil)
 
-		formattedName = fmt.Sprintf("%v%v%v", prefix, table, name)[0:56] + hex.EncodeToString(bs)[:8]
+		formattedName = formattedName[0:56] + hex.EncodeToString(bs)[:8]
 	}
 	return formattedName
 }
@@ -108,7 +119,13 @@ func (ns NamingStrategy) toDBName(name string) string {
 	}
 
 	if ns.NameReplacer != nil {
-		name = ns.NameReplacer.Replace(name)
+		tmpName := ns.NameReplacer.Replace(name)
+
+		if tmpName == "" {
+			return name
+		}
+
+		name = tmpName
 	}
 
 	if ns.NoLowerCase {
@@ -153,4 +170,12 @@ func (ns NamingStrategy) toDBName(name string) string {
 	}
 	ret := buf.String()
 	return ret
+}
+
+func (ns NamingStrategy) toSchemaName(name string) string {
+	result := strings.ReplaceAll(strings.Title(strings.ReplaceAll(name, "_", " ")), " ", "")
+	for _, initialism := range commonInitialisms {
+		result = regexp.MustCompile(strings.Title(strings.ToLower(initialism))+"([A-Z]|$|_)").ReplaceAllString(result, initialism+"$1")
+	}
+	return result
 }

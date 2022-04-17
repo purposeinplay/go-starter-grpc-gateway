@@ -11,7 +11,8 @@ func ComposeDSN(
 	user,
 	password,
 	dbName,
-	sslMode string) string {
+	sslMode string,
+) string {
 	return fmt.Sprintf(
 		"host=%s "+
 			"user=%s "+

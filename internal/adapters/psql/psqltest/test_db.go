@@ -7,6 +7,9 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/cenkalti/backoff/v4"
+	"github.com/pkg/errors"
+
 	"github.com/DATA-DOG/go-txdb"
 	"github.com/goccy/go-yaml"
 	"github.com/romanyx/polluter"
@@ -60,4 +63,48 @@ func NewDB(dsn string) (*gorm.DB, func() error, error) {
 	}
 
 	return db, dbSQL.Close, nil
+}
+
+// Connect will connect to that repository engine.
+func Connect(dsn string) (*gorm.DB, func() error, error) {
+	var db *gorm.DB
+
+	operation := func() error {
+		conn, err := gorm.Open(
+			postgres.New(
+				postgres.Config{
+					DriverName: Driver,
+					DSN:        dsn,
+				},
+			),
+			&gorm.Config{},
+		)
+
+		db = conn
+
+		if err != nil {
+			return errors.Wrap(err, "opening database connection")
+		}
+
+		return nil
+	}
+
+	err := backoff.Retry(operation, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	db.Logger = db.Logger.LogMode(logger.Info)
+
+	sqlDB, err := db.DB()
+
+	if err == nil {
+		err = sqlDB.Ping()
+	}
+
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "checking database connection")
+	}
+
+	return db, sqlDB.Close, nil
 }

@@ -3,121 +3,223 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"net"
+	"strconv"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
-	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/purposeinplay/go-commons/auth"
+	"google.golang.org/protobuf/types/known/emptypb"
+
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"google.golang.org/grpc/health/grpc_health_v1"
+
 	grpccommons "github.com/purposeinplay/go-commons/grpc"
-	starterapi "github.com/purposeinplay/go-starter-grpc-gateway/apigrpc"
+
+	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
+	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app"
+
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/config"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-// Server represents the GRPC server dependencies.
+var _ apigrpc.GoStarterServer = (*Server)(nil)
+
 type Server struct {
-	starterapi.UnimplementedGoStarterServer
-	config     *config.Config
+	grpc_health_v1.UnimplementedHealthServer
+	apigrpc.UnimplementedGoStarterServer
+
+	ctx        context.Context
 	logger     *zap.Logger
-	jwtManager *auth.JWTManager
-	server     *grpccommons.Server
 	app        app.Application
+	cfg        *config.Config
+	server     *grpccommons.Server
+	jwtManager *auth.JWTManager
 }
 
-// NewGrpcServer runs a grpc server.
 func NewGrpcServer(
 	ctx context.Context,
-	cfg *config.Config,
 	logger *zap.Logger,
-	application app.Application,
+	cfg *config.Config,
+	app app.Application,
 	jwtManager *auth.JWTManager,
 ) *Server {
-	const servicePath = "/starter.apigrpc.GoStarter/"
+	grpc_zap.ReplaceGrpcLoggerV2(logger)
 
+	srv := &Server{
+		ctx:        ctx,
+		app:        app,
+		cfg:        cfg,
+		logger:     logger.Named("grpc.server"),
+		jwtManager: jwtManager,
+	}
+
+	const servicePath = "/starter.apigrpc.GoStarter/"
 	authRoles := map[string][]string{
 		servicePath + "FindUser": {"user"},
 	}
 
 	authInterceptor := auth.NewAuthInterceptor(logger, jwtManager, authRoles)
 
+	opts := []grpccommons.ServerOption{
+		grpccommons.WithUnaryServerInterceptorRecovery(
+			func(p interface{}) (err error) {
+				return srv.handlePanicRecover(p)
+			},
+		),
+
+		grpccommons.WithUnaryServerInterceptor(
+			authInterceptor.Unary(),
+		),
+		grpccommons.WithAddress(cfg.SERVER.Address),
+		grpccommons.WithUnaryServerInterceptorLogger(
+			logger.Named("grpc.server.interceptor"),
+		),
+		grpccommons.WithUnaryServerInterceptorCodeGen(),
+		grpccommons.WithRegisterServerFunc(srv.registerGrpcServer),
+		grpccommons.WithRegisterGatewayFunc(srv.registerGatewayServer),
+		grpccommons.WithDebug(logger.Named("grpc.server.debug")),
+	}
+
+	grpcServer, err := grpccommons.NewServer(opts...)
+	if err != nil {
+		panic(err)
+	}
+	srv.server = grpcServer
+
+	go func() {
+		err := grpcServer.ListenAndServe()
+		if err != nil {
+			logger.Error("listen and serve err", zap.Error(err))
+		}
+	}()
+
+	return srv
+}
+
+func NewGrpcTestServer(
+	ctx context.Context,
+	logger *zap.Logger,
+	cfg *config.Config,
+	app app.Application,
+	listener net.Listener,
+) *Server {
 	grpc_zap.ReplaceGrpcLoggerV2(logger)
 
-	serverOptions := []grpc.ServerOption{
-		grpc_middleware.WithUnaryServerChain(
-			authInterceptor.Unary(),
-			grpc_ctxtags.UnaryServerInterceptor(
-				grpc_ctxtags.WithFieldExtractor(
-					grpc_ctxtags.CodeGenRequestFieldExtractor,
-				),
-			),
-			grpc_zap.UnaryServerInterceptor(logger),
-		),
-	}
-
 	srv := &Server{
-		config:     cfg,
-		logger:     logger,
-		jwtManager: jwtManager,
-		app:        application,
+		ctx:    ctx,
+		app:    app,
+		cfg:    cfg,
+		logger: logger.Named("grpc.server"),
 	}
 
-	options := []grpccommons.ServerOption{
-		grpccommons.WithGrpcServerOptions(serverOptions),
+	opts := []grpccommons.ServerOption{
+		// grpccommons.WithUnaryServerInterceptorRecovery(
+		//	func(p interface{}) (err error) {
+		//		return srv.handlePanicRecover(p)
+		//	},
+		//),
 
-		grpccommons.ReplaceLogger(logger),
-
-		grpccommons.RegisterServer(
-			func(server *grpc.Server) {
-				starterapi.RegisterGoStarterServer(server, srv)
-			},
+		// grpccommons.WithUnaryServerInterceptorHandleErr(srv.handleErr),
+		grpccommons.WithNoGateway(),
+		grpccommons.WithDebug(logger),
+		grpccommons.WithAddress(cfg.SERVER.Address),
+		grpccommons.WithUnaryServerInterceptorLogger(
+			logger.Named("grpc.test_server.interceptor"),
 		),
-
-		grpccommons.RegisterGateway(
-			func(mux *runtime.ServeMux, dialOptions []grpc.DialOption) {
-				fmt.Printf("cfg %+v", cfg)
-				dialAddr := fmt.Sprintf(
-					"127.0.0.1:%d",
-					cfg.SERVER.Port-1,
-				)
-				if cfg.SERVER.Address != "" {
-					dialAddr = fmt.Sprintf(
-						"%v:%d",
-						cfg.SERVER.Address,
-						cfg.SERVER.Port-1,
-					)
-				}
-				err := starterapi.RegisterGoStarterHandlerFromEndpoint(
-					ctx,
-					mux,
-					dialAddr,
-					dialOptions,
-				)
-				if err != nil {
-					logger.Fatal("connecting to gRPC gateway", zap.Error(err))
-				}
-			},
-		),
+		grpccommons.WithGRPCListener(listener),
+		grpccommons.WithUnaryServerInterceptorCodeGen(),
+		grpccommons.WithRegisterServerFunc(srv.registerGrpcServer),
+		grpccommons.WithRegisterGatewayFunc(srv.registerGatewayServer),
+		grpccommons.WithDebug(logger.Named("grpc.server.debug")),
 	}
 
-	grpcServer := grpccommons.NewServer(options...)
+	grpcServer, err := grpccommons.NewServer(opts...)
+	if err != nil {
+		panic(err)
+	}
 	srv.server = grpcServer
 
 	return srv
 }
 
-// Stop terminates the server.
-func (s Server) Stop() {
-	s.server.Stop()
+// ListenAndServe wraps the underlying
+// grpccommons.Server ListenAndServe method.
+func (a *Server) ListenAndServe() error {
+	return a.server.ListenAndServe()
+}
+
+// Close terminates the server.
+func (a *Server) Close() error {
+	return a.server.Close()
 }
 
 // Healthcheck endpoint.
-func (Server) Healthcheck(
+func (a *Server) Healthcheck(
 	context.Context,
 	*emptypb.Empty,
 ) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, nil
+	return nil, nil
+}
+
+// Check is used to verify if the API is able to accept requests.
+func (a *Server) Check(
+	context.Context,
+	*grpc_health_v1.HealthCheckRequest,
+) (*grpc_health_v1.HealthCheckResponse, error) {
+	return &grpc_health_v1.HealthCheckResponse{
+		Status: grpc_health_v1.HealthCheckResponse_SERVING,
+	}, nil
+}
+
+// Watch works like Check, but it creates an ongoing connection.
+func (a *Server) Watch(
+	*grpc_health_v1.HealthCheckRequest,
+	grpc_health_v1.Health_WatchServer,
+) error {
+	return status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (a *Server) registerGrpcServer(server *grpc.Server) {
+	apigrpc.RegisterGoStarterServer(server, a)
+	grpc_health_v1.RegisterHealthServer(server, a)
+}
+
+func (a *Server) registerGatewayServer(
+	mux *runtime.ServeMux,
+	dialOptions []grpc.DialOption,
+) error {
+	host, port, err := parseHostPort(a.cfg.SERVER.Address)
+	if err != nil {
+		return fmt.Errorf("could not parse server address: %w", err)
+	}
+
+	err = apigrpc.RegisterGoStarterHandlerFromEndpoint(
+		context.Background(),
+		mux,
+		fmt.Sprintf("%v:%v", host, port-1),
+		dialOptions,
+	)
+	if err != nil {
+		return fmt.Errorf("register gRPC gateway: %w", err)
+	}
+
+	return nil
+}
+
+func parseHostPort(address string) (string, int, error) {
+	hostString, portString, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid address: %w", err)
+	}
+
+	port, err := strconv.Atoi(portString)
+	if err != nil {
+		return "", 0, fmt.Errorf("parse port: %w", err)
+	}
+
+	return hostString, port, nil
 }

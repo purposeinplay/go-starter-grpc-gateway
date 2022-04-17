@@ -1,49 +1,64 @@
-package grpc_test
+package grpc
 
 import (
 	"context"
 	"testing"
 
-	"github.com/matryer/is"
 	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc"
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app"
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/config"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestGetUserByIDWithUnauthenticated(t *testing.T) {
-	cfg := &config.Config{
-		SERVER: struct {
-			Port    int    `mapstructure:"port"`
-			Address string `mapstructure:"address"`
-		}{
-			Port:    7350,
-			Address: "0.0.0.0",
-		},
-		JWT: struct {
-			Secret          string `mapstructure:"secret"`
-			RefreshTokenExp int    `mapstructure:"refresh_token_exp"`
-			AccessTokenExp  int    `mapstructure:"access_token_exp"`
-		}{
-			Secret:          "5649e3d0-7ba4-411d-a721-202c1c626f5c",
-			RefreshTokenExp: 3600,
-			AccessTokenExp:  900,
-		},
-	}
+// func TestGetUser_ByIDWithUnauthenticated(t *testing.T) {
+//	cfg := &config.Config{
+//		SERVER: struct {
+//			Port    int    `mapstructure:"port"`
+//			Address string `mapstructure:"address"`
+//		}{
+//			Port:    7350,
+//			Address: "0.0.0.0",
+//		},
+//		JWT: struct {
+//			Secret          string `mapstructure:"secret"`
+//			RefreshTokenExp int    `mapstructure:"refresh_token_exp"`
+//			AccessTokenExp  int    `mapstructure:"access_token_exp"`
+//		}{
+//			Secret:          "5649e3d0-7ba4-411d-a721-202c1c626f5c",
+//			RefreshTokenExp: 3600,
+//			AccessTokenExp:  900,
+//		},
+//	}
+//
+//	var (
+//		_, conn = newServerOnRandomPort(t, app.Application{}, cfg)
+//		client  = apigrpc.NewGoStarterClient(conn)
+//		ctx     = context.TODO()
+//		i       = is.New(t)
+//	)
+//
+//	_, err := client.GetUser(ctx, &apigrpc.GetUserRequest{
+//		Id: "1",
+//	})
+//	i.NoErr(err)
+//}
 
-	var (
-		_, conn = newServerOnRandomPort(t, app.Application{}, cfg)
-		client  = apigrpc.NewGoStarterClient(conn)
-		ctx     = context.TODO()
-		i       = is.New(t)
+func TestServer_CreateUser(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	_, conn, _ := newTestServer(
+		t,
 	)
 
-	_, err := client.GetUser(ctx, &apigrpc.GetUserRequest{
-		Id: "1",
+	client := apigrpc.NewGoStarterClient(conn)
+
+	_, err := client.CreateUser(ctx, &apigrpc.CreateUserRequest{
+		Email: "test@email.com",
 	})
-	i.NoErr(err)
+
+	assert.NoError(t, err)
 }
 
-//
 // func (ts *StarterTestSuite) TestStarterAPI_FindUserWithUnauthenticated() {
 // 	ctx := context.Background()
 //
