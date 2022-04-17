@@ -1,7 +1,7 @@
 syntax = "proto3";
 
-package starter.apigrpc;
-option go_package = "./;apigrpc";
+package startergrpc.v1;
+option go_package = "./;startergrpc";
 
 
 import "google/protobuf/empty.proto";

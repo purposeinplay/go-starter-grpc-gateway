@@ -2,9 +2,9 @@ package grpc
 
 import (
 	"context"
+	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 	"testing"
 
-	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,9 +50,9 @@ func TestServer_CreateUser(t *testing.T) {
 		t,
 	)
 
-	client := apigrpc.NewGoStarterClient(conn)
+	client := startergrpc.NewGoStarterClient(conn)
 
-	_, err := client.CreateUser(ctx, &apigrpc.CreateUserRequest{
+	_, err := client.CreateUser(ctx, &startergrpc.CreateUserRequest{
 		Email: "test@email.com",
 	})
 

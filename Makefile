@@ -2,7 +2,7 @@ CHECK_FILES?=$$(go list ./... | grep -v /vendor/)
 
 .PHONY: proto
 proto: ## Regenerate proto files.
-	protoc -I=proto -I./vendor/github.com/grpc-ecosystem/grpc-gateway/v2 -I=apigrpc apigrpc/starter.proto --go_out=apigrpc --go-grpc_out=apigrpc --grpc-gateway_out=apigrpc --openapiv2_out=apigrpc
+	protoc -I=proto -I./vendor/github.com/grpc-ecosystem/grpc-gateway/v2 -I=apigrpc apigrpc/v1/starter.proto --go_out=apigrpc/v1 --go-grpc_out=apigrpc/v1 --grpc-gateway_out=apigrpc/v1 --openapiv2_out=apigrpc
 
 .PHONY: image
 image: ## Build the Docker image.

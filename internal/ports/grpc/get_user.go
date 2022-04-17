@@ -3,8 +3,8 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 
-	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/auth"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/errors"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/uuid"
@@ -13,8 +13,8 @@ import (
 // GetUser returns a user from the system.
 func (s *Server) GetUser(
 	ctx context.Context,
-	req *apigrpc.GetUserRequest,
-) (*apigrpc.GetUserResponse, error) {
+	req *startergrpc.GetUserRequest,
+) (*startergrpc.GetUserResponse, error) {
 	u, err := auth.UUIDFromContextJWT(ctx, s.jwtManager)
 	if err != nil {
 		return nil, s.handleErr(fmt.Errorf(
@@ -43,8 +43,8 @@ func (s *Server) GetUser(
 		))
 	}
 
-	return &apigrpc.GetUserResponse{
-		User: &apigrpc.User{
+	return &startergrpc.GetUserResponse{
+		User: &startergrpc.User{
 			Id:    user.ID.String(),
 			Email: user.Email,
 		},

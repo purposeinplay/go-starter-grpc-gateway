@@ -33,7 +33,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apigrpcGetUserResponse"
+              "$ref": "#/definitions/v1GetUserResponse"
             }
           },
           "500": {
@@ -52,7 +52,7 @@
         "parameters": [
           {
             "name": "id",
-            "description": "The id of the user.",
+            "description": "The id of the user",
             "in": "query",
             "required": false,
             "type": "string"
@@ -100,7 +100,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apigrpcFindUsersResponse"
+              "$ref": "#/definitions/v1FindUsersResponse"
             }
           },
           "401": {
@@ -138,7 +138,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apigrpcCreateUserResponse"
+              "$ref": "#/definitions/v1CreateUserResponse"
             }
           },
           "400": {
@@ -172,7 +172,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apigrpcCreateUserRequest"
+              "$ref": "#/definitions/v1CreateUserRequest"
             }
           }
         ],
@@ -188,71 +188,6 @@
     }
   },
   "definitions": {
-    "apigrpcCreateUserRequest": {
-      "type": "object",
-      "example": {
-        "id": "b028f046-787c-4a3c-adfd-b838c15b9509",
-        "email": "hello@purposeinplay.com"
-      },
-      "properties": {
-        "email": {
-          "type": "string",
-          "title": "The email of the user"
-        }
-      },
-      "description": "Create a new user."
-    },
-    "apigrpcCreateUserResponse": {
-      "type": "object",
-      "properties": {
-        "user": {
-          "$ref": "#/definitions/apigrpcUser",
-          "description": "The user entity."
-        }
-      },
-      "description": "Returns the created user."
-    },
-    "apigrpcFindUsersResponse": {
-      "type": "object",
-      "properties": {
-        "users": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/apigrpcUser"
-          },
-          "title": "The user response entity"
-        }
-      },
-      "title": "Returns list of users"
-    },
-    "apigrpcGetUserResponse": {
-      "type": "object",
-      "properties": {
-        "user": {
-          "$ref": "#/definitions/apigrpcUser",
-          "title": "The user entity"
-        }
-      },
-      "description": "Returns a single user."
-    },
-    "apigrpcUser": {
-      "type": "object",
-      "example": {
-        "id": "bec95f6a-2e45-4a9a-bb92-314073acf23e",
-        "email": "hello@purposeinplay.com"
-      },
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "The id of the user."
-        },
-        "email": {
-          "type": "string",
-          "description": "The email of the user."
-        }
-      },
-      "description": "Returns the user entity."
-    },
     "protobufAny": {
       "type": "object",
       "properties": {
@@ -279,6 +214,71 @@
           }
         }
       }
+    },
+    "v1CreateUserRequest": {
+      "type": "object",
+      "example": {
+        "id": "b028f046-787c-4a3c-adfd-b838c15b9509",
+        "email": "hello@purposeinplay.com"
+      },
+      "properties": {
+        "email": {
+          "type": "string",
+          "title": "The email of the user"
+        }
+      },
+      "description": "Create a new user."
+    },
+    "v1CreateUserResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/v1User",
+          "description": "The user entity."
+        }
+      },
+      "description": "Returns the created user."
+    },
+    "v1FindUsersResponse": {
+      "type": "object",
+      "properties": {
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1User"
+          },
+          "title": "The user response entity"
+        }
+      },
+      "title": "Returns list of users"
+    },
+    "v1GetUserResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/v1User",
+          "title": "The user entity"
+        }
+      },
+      "description": "Returns a single user."
+    },
+    "v1User": {
+      "type": "object",
+      "example": {
+        "id": "bec95f6a-2e45-4a9a-bb92-314073acf23e",
+        "email": "hello@purposeinplay.com"
+      },
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The id of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email of the user."
+        }
+      },
+      "description": "Returns the user entity."
     }
   },
   "securityDefinitions": {

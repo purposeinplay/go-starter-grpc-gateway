@@ -1,14 +1,13 @@
 package grpc
 
-
 // and to use the google.golang.org one,
 // but I don't know how to change this repo in the generate go files.
 import (
 	"context"
 	"fmt"
+	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app/command"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/errors"
 	"go.uber.org/zap"
@@ -97,22 +96,22 @@ func errorToGRPCStatus(err *errors.Error) *status.Status {
 
 // errorDetailsToGRPCDetails checks if error details are attached to an
 // application errors and converts them to a grpc message.
-func errorDetailsToGRPCDetails(d *errors.Error) *apigrpc.ErrorResponse {
+func errorDetailsToGRPCDetails(d *errors.Error) *startergrpc.ErrorResponse {
 	details, ok := d.Details()
 	if !ok {
 		return nil
 	}
 
-	var code apigrpc.ErrorResponse_ErrorCode
+	var code startergrpc.ErrorResponse_ErrorCode
 
 	switch details.ApplicationErrorCode() {
 	case errors.InternalErrorCodeNotEnoughBalance:
-		code = apigrpc.ErrorResponse_ERROR_CODE_NOT_ENOUGH_BALANCE
+		code = startergrpc.ErrorResponse_ERROR_CODE_NOT_ENOUGH_BALANCE
 	case errors.InternalErrorCodeEmailNotProvided:
-		code = apigrpc.ErrorResponse_ERROR_CODE_EMAIL_NOT_PROVIDED
+		code = startergrpc.ErrorResponse_ERROR_CODE_EMAIL_NOT_PROVIDED
 	}
 
-	return &apigrpc.ErrorResponse{
+	return &startergrpc.ErrorResponse{
 		ErrorCode: code,
 		Message:   details.Message(),
 	}

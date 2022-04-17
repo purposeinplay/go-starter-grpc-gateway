@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 	"net"
 	"strconv"
 
@@ -19,18 +20,17 @@ import (
 	grpccommons "github.com/purposeinplay/go-commons/grpc"
 
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
-	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app"
 
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/config"
 	"go.uber.org/zap"
 )
 
-var _ apigrpc.GoStarterServer = (*Server)(nil)
+var _ startergrpc.GoStarterServer = (*Server)(nil)
 
 type Server struct {
 	grpc_health_v1.UnimplementedHealthServer
-	apigrpc.UnimplementedGoStarterServer
+	startergrpc.UnimplementedGoStarterServer
 
 	ctx        context.Context
 	logger     *zap.Logger
@@ -184,7 +184,7 @@ func (a *Server) Watch(
 }
 
 func (a *Server) registerGrpcServer(server *grpc.Server) {
-	apigrpc.RegisterGoStarterServer(server, a)
+	startergrpc.RegisterGoStarterServer(server, a)
 	grpc_health_v1.RegisterHealthServer(server, a)
 }
 
@@ -197,7 +197,7 @@ func (a *Server) registerGatewayServer(
 		return fmt.Errorf("could not parse server address: %w", err)
 	}
 
-	err = apigrpc.RegisterGoStarterHandlerFromEndpoint(
+	err = startergrpc.RegisterGoStarterHandlerFromEndpoint(
 		context.Background(),
 		mux,
 		fmt.Sprintf("%v:%v", host, port-1),

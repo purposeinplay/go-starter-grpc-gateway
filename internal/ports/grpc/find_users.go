@@ -3,8 +3,8 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 
-	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/auth"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/domain/user"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -14,7 +14,7 @@ import (
 func (s *Server) FindUsers(
 	ctx context.Context,
 	_ *emptypb.Empty,
-) (*apigrpc.FindUsersResponse, error) {
+) (*startergrpc.FindUsersResponse, error) {
 	userID, err := auth.UUIDFromContextJWT(ctx, s.jwtManager)
 	if err != nil {
 		return nil, s.handleErr(fmt.Errorf(
@@ -36,16 +36,16 @@ func (s *Server) FindUsers(
 		))
 	}
 
-	resUsers := make([]*apigrpc.User, 0, len(users))
+	resUsers := make([]*startergrpc.User, 0, len(users))
 
 	for _, u := range users {
-		resUsers = append(resUsers, &apigrpc.User{
+		resUsers = append(resUsers, &startergrpc.User{
 			Id:    u.ID.String(),
 			Email: u.Email,
 		})
 	}
 
-	return &apigrpc.FindUsersResponse{
+	return &startergrpc.FindUsersResponse{
 		Users: resUsers,
 	}, nil
 }
