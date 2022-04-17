@@ -6,7 +6,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
+	startergrpc "github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 
 	"github.com/purposeinplay/go-commons/auth"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -29,6 +29,7 @@ import (
 
 var _ startergrpc.GoStarterServer = (*Server)(nil)
 
+// Server represents the GRPC server dependencies.
 type Server struct {
 	grpc_health_v1.UnimplementedHealthServer
 	startergrpc.UnimplementedGoStarterServer
@@ -41,24 +42,26 @@ type Server struct {
 	jwtManager *auth.JWTManager
 }
 
+// NewGrpcServer runs a grpc server.
 func NewGrpcServer(
 	ctx context.Context,
 	logger *zap.Logger,
 	cfg *config.Config,
-	app app.Application,
+	application app.Application,
 	jwtManager *auth.JWTManager,
 ) *Server {
 	grpc_zap.ReplaceGrpcLoggerV2(logger)
 
 	srv := &Server{
 		ctx:        ctx,
-		app:        app,
+		app:        application,
 		cfg:        cfg,
 		logger:     logger.Named("grpc.server"),
 		jwtManager: jwtManager,
 	}
 
 	const servicePath = "/starter.apigrpc.GoStarter/"
+
 	authRoles := map[string][]string{
 		servicePath + "FindUser": {"user"},
 	}
@@ -89,6 +92,7 @@ func NewGrpcServer(
 	if err != nil {
 		panic(err)
 	}
+
 	srv.server = grpcServer
 
 	go func() {
@@ -101,18 +105,19 @@ func NewGrpcServer(
 	return srv
 }
 
+// NewGrpcTestServer returns a new grpc server to be used in tests.
 func NewGrpcTestServer(
 	ctx context.Context,
 	logger *zap.Logger,
 	cfg *config.Config,
-	app app.Application,
+	application app.Application,
 	listener net.Listener,
 ) *Server {
 	grpc_zap.ReplaceGrpcLoggerV2(logger)
 
 	srv := &Server{
 		ctx:    ctx,
-		app:    app,
+		app:    application,
 		cfg:    cfg,
 		logger: logger.Named("grpc.server"),
 	}
@@ -122,7 +127,7 @@ func NewGrpcTestServer(
 		//	func(p interface{}) (err error) {
 		//		return srv.handlePanicRecover(p)
 		//	},
-		//),
+		// ),
 
 		// grpccommons.WithUnaryServerInterceptorHandleErr(srv.handleErr),
 		grpccommons.WithNoGateway(),
@@ -142,6 +147,7 @@ func NewGrpcTestServer(
 	if err != nil {
 		panic(err)
 	}
+
 	srv.server = grpcServer
 
 	return srv
@@ -159,7 +165,7 @@ func (s *Server) Close() error {
 }
 
 // Healthcheck endpoint.
-func (s *Server) Healthcheck(
+func (*Server) Healthcheck(
 	context.Context,
 	*emptypb.Empty,
 ) (*emptypb.Empty, error) {
@@ -167,7 +173,7 @@ func (s *Server) Healthcheck(
 }
 
 // Check is used to verify if the API is able to accept requests.
-func (s *Server) Check(
+func (*Server) Check(
 	context.Context,
 	*grpc_health_v1.HealthCheckRequest,
 ) (*grpc_health_v1.HealthCheckResponse, error) {
@@ -177,7 +183,7 @@ func (s *Server) Check(
 }
 
 // Watch works like Check, but it creates an ongoing connection.
-func (s *Server) Watch(
+func (*Server) Watch(
 	*grpc_health_v1.HealthCheckRequest,
 	grpc_health_v1.Health_WatchServer,
 ) error {

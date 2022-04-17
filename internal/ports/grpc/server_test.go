@@ -43,12 +43,15 @@ var (
 func newTestServer(
 	t *testing.T,
 ) (*Server, *grpc.ClientConn, *gorm.DB) {
+	t.Helper()
+
 	ctx := context.Background()
 
 	logger, err := logs.NewDevelopmentLogger()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		_ = logger.Sync()
 	}()
@@ -74,6 +77,7 @@ func newTestServer(
 		if err != nil {
 			t.Error(err)
 		}
+
 		return
 	}()
 

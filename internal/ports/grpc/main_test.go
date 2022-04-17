@@ -20,6 +20,7 @@ func TestMain(m *testing.M) {
 	}
 
 	psqltest.Register(dsn)
+
 	exitVal := m.Run()
 
 	os.Exit(exitVal)

@@ -89,7 +89,10 @@ func Connect(dsn string) (*gorm.DB, func() error, error) {
 		return nil
 	}
 
-	err := backoff.Retry(operation, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5))
+	err := backoff.Retry(
+		operation,
+		backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5),
+	)
 	if err != nil {
 		return nil, nil, err
 	}

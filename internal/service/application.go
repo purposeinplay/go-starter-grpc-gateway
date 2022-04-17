@@ -26,7 +26,7 @@ func NewApplication(
 		logger.Fatal("connecting to database: %+v", zap.Error(err))
 	}
 
-	return newApplication(
+	return bootstrap(
 			ctx,
 			logger,
 			cfg,
@@ -36,7 +36,7 @@ func NewApplication(
 		}
 }
 
-func newApplication(
+func bootstrap(
 	_ context.Context,
 	_ *zap.Logger,
 	_ *config.Config,
@@ -62,5 +62,5 @@ func NewTestApplication(
 	cfg *config.Config,
 	db *gorm.DB,
 ) app.Application {
-	return newApplication(ctx, logger, cfg, db)
+	return bootstrap(ctx, logger, cfg, db)
 }

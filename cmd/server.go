@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// ServerCmd subcommand that starts the server.
 var ServerCmd = &cobra.Command{
 	Use: "server",
 	Run: func(cmd *cobra.Command, args []string) {

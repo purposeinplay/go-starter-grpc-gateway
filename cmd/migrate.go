@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// migrateCmd represents a Migrate command.
+// migrateCmd subcommand that migrates the db.
 var migrateCmd = &cobra.Command{
 	Use: "migrate",
 	Long: "Migrate database structures. " +
