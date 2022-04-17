@@ -5,6 +5,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+
 	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 
 	"github.com/golang/protobuf/proto"

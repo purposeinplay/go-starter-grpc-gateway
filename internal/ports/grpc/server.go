@@ -3,9 +3,10 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 	"net"
 	"strconv"
+
+	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 
 	"github.com/purposeinplay/go-commons/auth"
 	"google.golang.org/protobuf/types/known/emptypb"

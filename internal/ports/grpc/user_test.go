@@ -2,8 +2,9 @@ package grpc
 
 import (
 	"context"
-	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 	"testing"
+
+	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 
 	"github.com/stretchr/testify/assert"
 )
