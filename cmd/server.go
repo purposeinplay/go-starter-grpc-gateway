@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/purposeinplay/go-commons/auth"
 	"github.com/purposeinplay/go-commons/logs"
@@ -13,13 +15,12 @@ import (
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/ports/grpc"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/service"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 // ServerCmd subcommand that starts the server.
 var ServerCmd = &cobra.Command{
 	Use: "server",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, _ := signal.NotifyContext(
 			context.Background(),
 			os.Interrupt,
@@ -32,12 +33,12 @@ var ServerCmd = &cobra.Command{
 		}()
 
 		if err != nil {
-			log.Panicf("could not create logger %+v", err)
+			return fmt.Errorf("could not create logger %w", err)
 		}
 
 		config, err := config.LoadConfig(cmd)
 		if err != nil {
-			logger.Fatal("unable to read config %v", zap.Error(err))
+			return fmt.Errorf("unable to read config %w", err)
 		}
 
 		logger.Info("Openmatch API starting")
@@ -51,7 +52,7 @@ var ServerCmd = &cobra.Command{
 		defer func() {
 			err := cleanup()
 			if err != nil {
-				logger.Fatal("error during cleanup %v", zap.Error(err))
+				logger.Fatal("error during cleanup", zap.Error(err))
 			}
 		}()
 
@@ -59,7 +60,7 @@ var ServerCmd = &cobra.Command{
 		defer func() {
 			err := server.Close()
 			if err != nil {
-				logger.Error("close grpc server", zap.Error(err))
+				logger.Fatal("close grpc server", zap.Error(err))
 			}
 		}()
 		logger.Info("Startup completed")
@@ -68,7 +69,7 @@ var ServerCmd = &cobra.Command{
 
 		logger.Info("Shutdown complete")
 
-		os.Exit(0)
+		return nil
 	},
 }
 

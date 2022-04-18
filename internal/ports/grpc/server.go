@@ -217,7 +217,7 @@ func (s *Server) registerGatewayServer(
 	return nil
 }
 
-func parseHostPort(address string) (string, int, error) {
+func parseHostPort(address string) (string, int, error) { //nolint:gocritic
 	hostString, portString, err := net.SplitHostPort(address)
 	if err != nil {
 		return "", 0, fmt.Errorf("invalid address: %w", err)

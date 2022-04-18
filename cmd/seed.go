@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// CMD executes a Seed Command.
-var CMD = &cobra.Command{
+// SeedCmd executes a Seed Command.
+var SeedCmd = &cobra.Command{
 	Use: "seed",
 	Long: "Seed database strucutures. " +
 		"This will create new tables and add missing columns and indexes.",

@@ -125,7 +125,6 @@ linters:
     - exportloopref	# checks for pointers to enclosing loop variables -- VERY IMPORTANT TO USE
     - forcetypeassert #	finds forced type assertions
     - importas # Enforces consistent import aliases
-    - gci # improves imports
     - dupl # Detects code clones
     - revive # Makes code style recomandations
     - gocyclo # Computes and checks the cyclomatic complexity of functions

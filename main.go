@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/purposeinplay/go-starter-grpc-gateway/cmd"
 )
 
 func main() {
 	if err := cmd.RootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 }

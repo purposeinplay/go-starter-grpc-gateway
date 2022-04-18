@@ -6,6 +6,7 @@ import (
 	"net"
 	"testing"
 
+	// revive:disable-next-line:line-length-limit
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/adapters/psql/psqltest"
 
 	"github.com/purposeinplay/go-commons/logs"
