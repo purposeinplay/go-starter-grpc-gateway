@@ -86,7 +86,7 @@ jobs:
         with:
           branch: swagger_ui
           files: |
-            ./apigrpc/v1/wallee.swagger.json
+            ./apigrpc/v1/starter.swagger.json
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   migrate:
