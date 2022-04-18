@@ -43,17 +43,3 @@ func (s Select) MergeClause(clause *Clause) {
 		clause.Expression = s
 	}
 }
-
-// CommaExpression represents a group of expressions separated by commas.
-type CommaExpression struct {
-	Exprs []Expression
-}
-
-func (comma CommaExpression) Build(builder Builder) {
-	for idx, expr := range comma.Exprs {
-		if idx > 0 {
-			_, _ = builder.WriteString(", ")
-		}
-		expr.Build(builder)
-	}
-}

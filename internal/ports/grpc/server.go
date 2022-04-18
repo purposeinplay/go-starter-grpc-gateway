@@ -20,7 +20,6 @@ import (
 
 	grpccommons "github.com/purposeinplay/go-commons/grpc"
 
-	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app"
 
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/config"
@@ -50,8 +49,6 @@ func NewGrpcServer(
 	application app.Application,
 	jwtManager *auth.JWTManager,
 ) *Server {
-	grpc_zap.ReplaceGrpcLoggerV2(logger)
-
 	srv := &Server{
 		ctx:        ctx,
 		app:        application,
@@ -113,8 +110,6 @@ func NewGrpcTestServer(
 	application app.Application,
 	listener net.Listener,
 ) *Server {
-	grpc_zap.ReplaceGrpcLoggerV2(logger)
-
 	srv := &Server{
 		ctx:    ctx,
 		app:    application,
@@ -123,13 +118,6 @@ func NewGrpcTestServer(
 	}
 
 	opts := []grpccommons.ServerOption{
-		// grpccommons.WithUnaryServerInterceptorRecovery(
-		//	func(p interface{}) (err error) {
-		//		return srv.handlePanicRecover(p)
-		//	},
-		// ),
-
-		// grpccommons.WithUnaryServerInterceptorHandleErr(srv.handleErr),
 		grpccommons.WithNoGateway(),
 		grpccommons.WithDebug(logger),
 		grpccommons.WithAddress(cfg.SERVER.Address),

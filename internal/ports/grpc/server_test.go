@@ -3,11 +3,11 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"github.com/matryer/is"
+	"github.com/purposeinplay/go-commons/psqltest"
+	"gorm.io/driver/postgres"
 	"net"
 	"testing"
-
-	// revive:disable-next-line:line-length-limit
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/adapters/psql/psqltest"
 
 	"github.com/purposeinplay/go-commons/logs"
 
@@ -46,21 +46,20 @@ func newTestServer(
 ) (*Server, *grpc.ClientConn, *gorm.DB) {
 	t.Helper()
 
+	i := is.New(t)
+
 	ctx := context.Background()
 
 	logger, err := logs.NewDevelopmentLogger()
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	i.NoErr(err)
 	defer func() {
 		_ = logger.Sync()
 	}()
 
-	db, closeDB, err := psqltest.Connect(t.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		Conn: psqltest.NewTransactionTestingDB(t),
+	}), &gorm.Config{})
+	i.NoErr(err)
 
 	app := service.NewTestApplication(
 		ctx,
@@ -76,7 +75,7 @@ func newTestServer(
 	go func() {
 		err = srv.ListenAndServe()
 		if err != nil {
-			t.Error(err)
+			i.NoErr(err)
 		}
 
 		return
@@ -92,7 +91,6 @@ func newTestServer(
 	}
 
 	t.Cleanup(func() {
-		_ = closeDB()
 		_ = conn.Close()
 		_ = srv.Close()
 	})

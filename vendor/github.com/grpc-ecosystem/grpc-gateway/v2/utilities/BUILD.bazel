@@ -8,7 +8,6 @@ go_library(
         "doc.go",
         "pattern.go",
         "readerfactory.go",
-        "string_array_flag.go",
         "trie.go",
     ],
     importpath = "github.com/grpc-ecosystem/grpc-gateway/v2/utilities",
@@ -17,11 +16,8 @@ go_library(
 go_test(
     name = "utilities_test",
     size = "small",
-    srcs = [
-        "string_array_flag_test.go",
-        "trie_test.go",
-    ],
-    deps = [":utilities"],
+    srcs = ["trie_test.go"],
+    embed = [":utilities"],
 )
 
 alias(

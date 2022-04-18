@@ -10,7 +10,7 @@ RUN go build -o gostarter main.go
 CMD tail -f /dev/null
 
 FROM alpine:latest as release
-
+#
 LABEL maintainer="support@win.com"
 
 WORKDIR /app

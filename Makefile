@@ -8,6 +8,9 @@ proto: ## Regenerate proto files.
 image: ## Build the Docker image.
 	docker build -t go-starter .
 
+test-ci:
+	go test -mod=vendor -count=1 -timeout 300s -short -coverprofile=coverage.txt -covermode=atomic ./internal/...
+
 .PHONY: test
 test: ## Run tests.
 	go test -p 1 -v $(CHECK_FILES)

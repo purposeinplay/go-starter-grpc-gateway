@@ -10,8 +10,7 @@ import (
 	// nolint: revive // reports line to long
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/adapters/psql/psqldocker"
 
-	// nolint: revive // reports line to long
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/adapters/psql/psqltest"
+	"github.com/purposeinplay/go-commons/psqltest"
 
 	// nolint: revive // reports line to long
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/adapters/psql/psqlutil"

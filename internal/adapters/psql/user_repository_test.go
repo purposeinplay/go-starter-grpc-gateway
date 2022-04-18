@@ -7,8 +7,7 @@ import (
 	"github.com/matryer/is"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/adapters/psql"
 
-	// nolint: revive // reports line to long
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/adapters/psql/psqltest"
+	"github.com/purposeinplay/go-commons/psqltest"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app/query"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/errors"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/uuid"
@@ -32,13 +31,10 @@ func TestUserRepository(t *testing.T) {
 	t.Run("AccountNotFound", func(t *testing.T) {
 		i := i.New(t)
 
-		db, closeDB, err := psqltest.NewDB(dsn)
+		db, err := gorm.Open(postgres.New(postgres.Config{
+			Conn: psqltest.NewTransactionTestingDB(t),
+		}), &gorm.Config{})
 		i.NoErr(err)
-
-		t.Cleanup(func() {
-			err := closeDB()
-			i.NoErr(err)
-		})
 
 		r := psql.NewUserRepository(
 			db,
@@ -58,13 +54,10 @@ func TestUserRepository(t *testing.T) {
 	t.Run("SuccessGetUserByID", func(t *testing.T) {
 		i := i.New(t)
 
-		db, closeDB, err := psqltest.NewDB(dsn)
+		db, err := gorm.Open(postgres.New(postgres.Config{
+			Conn: psqltest.NewTransactionTestingDB(t),
+		}), &gorm.Config{})
 		i.NoErr(err)
-
-		t.Cleanup(func() {
-			err := closeDB()
-			i.NoErr(err)
-		})
 
 		r := psql.NewUserRepository(
 			db,
@@ -82,13 +75,10 @@ func TestUserRepository(t *testing.T) {
 	t.Run("SuccessCreate", func(t *testing.T) {
 		i := i.New(t)
 
-		db, closeDB, err := psqltest.NewDB(dsn)
+		db, err := gorm.Open(postgres.New(postgres.Config{
+			Conn: psqltest.NewTransactionTestingDB(t),
+		}), &gorm.Config{})
 		i.NoErr(err)
-
-		t.Cleanup(func() {
-			err := closeDB()
-			i.NoErr(err)
-		})
 
 		r := psql.NewUserRepository(
 			db,

@@ -1,8 +1,6 @@
 package gorm
 
 import (
-	"reflect"
-
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 )
@@ -35,23 +33,14 @@ type ViewOption struct {
 	Query       *DB
 }
 
-// ColumnType column type interface
 type ColumnType interface {
 	Name() string
-	DatabaseTypeName() string                 // varchar
-	ColumnType() (columnType string, ok bool) // varchar(64)
-	PrimaryKey() (isPrimaryKey bool, ok bool)
-	AutoIncrement() (isAutoIncrement bool, ok bool)
+	DatabaseTypeName() string
 	Length() (length int64, ok bool)
 	DecimalSize() (precision int64, scale int64, ok bool)
 	Nullable() (nullable bool, ok bool)
-	Unique() (unique bool, ok bool)
-	ScanType() reflect.Type
-	Comment() (value string, ok bool)
-	DefaultValue() (value string, ok bool)
 }
 
-// Migrator migrator interface
 type Migrator interface {
 	// AutoMigrate
 	AutoMigrate(dst ...interface{}) error
@@ -65,7 +54,6 @@ type Migrator interface {
 	DropTable(dst ...interface{}) error
 	HasTable(dst interface{}) bool
 	RenameTable(oldName, newName interface{}) error
-	GetTables() (tableList []string, err error)
 
 	// Columns
 	AddColumn(dst interface{}, field string) error

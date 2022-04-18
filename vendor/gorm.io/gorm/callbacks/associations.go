@@ -7,7 +7,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"gorm.io/gorm/utils"
 )
 
 func SaveBeforeAssociations(create bool) func(db *gorm.DB) {
@@ -24,8 +23,8 @@ func SaveBeforeAssociations(create bool) func(db *gorm.DB) {
 				setupReferences := func(obj reflect.Value, elem reflect.Value) {
 					for _, ref := range rel.References {
 						if !ref.OwnPrimaryKey {
-							pv, _ := ref.PrimaryKey.ValueOf(db.Statement.Context, elem)
-							db.AddError(ref.ForeignKey.Set(db.Statement.Context, obj, pv))
+							pv, _ := ref.PrimaryKey.ValueOf(elem)
+							db.AddError(ref.ForeignKey.Set(obj, pv))
 
 							if dest, ok := db.Statement.Dest.(map[string]interface{}); ok {
 								dest[ref.ForeignKey.DBName] = pv
@@ -40,8 +39,7 @@ func SaveBeforeAssociations(create bool) func(db *gorm.DB) {
 				switch db.Statement.ReflectValue.Kind() {
 				case reflect.Slice, reflect.Array:
 					var (
-						rValLen   = db.Statement.ReflectValue.Len()
-						objs      = make([]reflect.Value, 0, rValLen)
+						objs      = make([]reflect.Value, 0, db.Statement.ReflectValue.Len())
 						fieldType = rel.Field.FieldType
 						isPtr     = fieldType.Kind() == reflect.Ptr
 					)
@@ -51,38 +49,39 @@ func SaveBeforeAssociations(create bool) func(db *gorm.DB) {
 					}
 
 					elems := reflect.MakeSlice(reflect.SliceOf(fieldType), 0, 10)
-					for i := 0; i < rValLen; i++ {
+					for i := 0; i < db.Statement.ReflectValue.Len(); i++ {
 						obj := db.Statement.ReflectValue.Index(i)
-						if reflect.Indirect(obj).Kind() != reflect.Struct {
-							break
-						}
 
-						if _, zero := rel.Field.ValueOf(db.Statement.Context, obj); !zero { // check belongs to relation value
-							rv := rel.Field.ReflectValueOf(db.Statement.Context, obj) // relation reflect value
-							objs = append(objs, obj)
-							if isPtr {
-								elems = reflect.Append(elems, rv)
-							} else {
-								elems = reflect.Append(elems, rv.Addr())
+						if reflect.Indirect(obj).Kind() == reflect.Struct {
+							if _, zero := rel.Field.ValueOf(obj); !zero { // check belongs to relation value
+								rv := rel.Field.ReflectValueOf(obj) // relation reflect value
+								objs = append(objs, obj)
+								if isPtr {
+									elems = reflect.Append(elems, rv)
+								} else {
+									elems = reflect.Append(elems, rv.Addr())
+								}
 							}
+						} else {
+							break
 						}
 					}
 
 					if elems.Len() > 0 {
-						if saveAssociations(db, rel, elems, selectColumns, restricted, nil) == nil {
+						if saveAssociations(db, rel, elems.Interface(), selectColumns, restricted, nil) == nil {
 							for i := 0; i < elems.Len(); i++ {
 								setupReferences(objs[i], elems.Index(i))
 							}
 						}
 					}
 				case reflect.Struct:
-					if _, zero := rel.Field.ValueOf(db.Statement.Context, db.Statement.ReflectValue); !zero {
-						rv := rel.Field.ReflectValueOf(db.Statement.Context, db.Statement.ReflectValue) // relation reflect value
+					if _, zero := rel.Field.ValueOf(db.Statement.ReflectValue); !zero {
+						rv := rel.Field.ReflectValueOf(db.Statement.ReflectValue) // relation reflect value
 						if rv.Kind() != reflect.Ptr {
 							rv = rv.Addr()
 						}
 
-						if saveAssociations(db, rel, rv, selectColumns, restricted, nil) == nil {
+						if saveAssociations(db, rel, rv.Interface(), selectColumns, restricted, nil) == nil {
 							setupReferences(db.Statement.ReflectValue, rv)
 						}
 					}
@@ -120,18 +119,18 @@ func SaveAfterAssociations(create bool) func(db *gorm.DB) {
 						obj := db.Statement.ReflectValue.Index(i)
 
 						if reflect.Indirect(obj).Kind() == reflect.Struct {
-							if _, zero := rel.Field.ValueOf(db.Statement.Context, obj); !zero {
-								rv := rel.Field.ReflectValueOf(db.Statement.Context, obj)
+							if _, zero := rel.Field.ValueOf(obj); !zero {
+								rv := rel.Field.ReflectValueOf(obj)
 								if rv.Kind() != reflect.Ptr {
 									rv = rv.Addr()
 								}
 
 								for _, ref := range rel.References {
 									if ref.OwnPrimaryKey {
-										fv, _ := ref.PrimaryKey.ValueOf(db.Statement.Context, obj)
-										db.AddError(ref.ForeignKey.Set(db.Statement.Context, rv, fv))
+										fv, _ := ref.PrimaryKey.ValueOf(obj)
+										db.AddError(ref.ForeignKey.Set(rv, fv))
 									} else if ref.PrimaryValue != "" {
-										db.AddError(ref.ForeignKey.Set(db.Statement.Context, rv, ref.PrimaryValue))
+										db.AddError(ref.ForeignKey.Set(rv, ref.PrimaryValue))
 									}
 								}
 
@@ -146,11 +145,11 @@ func SaveAfterAssociations(create bool) func(db *gorm.DB) {
 							assignmentColumns = append(assignmentColumns, ref.ForeignKey.DBName)
 						}
 
-						saveAssociations(db, rel, elems, selectColumns, restricted, assignmentColumns)
+						saveAssociations(db, rel, elems.Interface(), selectColumns, restricted, assignmentColumns)
 					}
 				case reflect.Struct:
-					if _, zero := rel.Field.ValueOf(db.Statement.Context, db.Statement.ReflectValue); !zero {
-						f := rel.Field.ReflectValueOf(db.Statement.Context, db.Statement.ReflectValue)
+					if _, zero := rel.Field.ValueOf(db.Statement.ReflectValue); !zero {
+						f := rel.Field.ReflectValueOf(db.Statement.ReflectValue)
 						if f.Kind() != reflect.Ptr {
 							f = f.Addr()
 						}
@@ -158,15 +157,15 @@ func SaveAfterAssociations(create bool) func(db *gorm.DB) {
 						assignmentColumns := make([]string, 0, len(rel.References))
 						for _, ref := range rel.References {
 							if ref.OwnPrimaryKey {
-								fv, _ := ref.PrimaryKey.ValueOf(db.Statement.Context, db.Statement.ReflectValue)
-								db.AddError(ref.ForeignKey.Set(db.Statement.Context, f, fv))
+								fv, _ := ref.PrimaryKey.ValueOf(db.Statement.ReflectValue)
+								ref.ForeignKey.Set(f, fv)
 							} else if ref.PrimaryValue != "" {
-								db.AddError(ref.ForeignKey.Set(db.Statement.Context, f, ref.PrimaryValue))
+								ref.ForeignKey.Set(f, ref.PrimaryValue)
 							}
 							assignmentColumns = append(assignmentColumns, ref.ForeignKey.DBName)
 						}
 
-						saveAssociations(db, rel, f, selectColumns, restricted, assignmentColumns)
+						saveAssociations(db, rel, f.Interface(), selectColumns, restricted, assignmentColumns)
 					}
 				}
 			}
@@ -183,37 +182,25 @@ func SaveAfterAssociations(create bool) func(db *gorm.DB) {
 					fieldType = reflect.PtrTo(fieldType)
 				}
 				elems := reflect.MakeSlice(reflect.SliceOf(fieldType), 0, 10)
-				identityMap := map[string]bool{}
 				appendToElems := func(v reflect.Value) {
-					if _, zero := rel.Field.ValueOf(db.Statement.Context, v); !zero {
-						f := reflect.Indirect(rel.Field.ReflectValueOf(db.Statement.Context, v))
+					if _, zero := rel.Field.ValueOf(v); !zero {
+						f := reflect.Indirect(rel.Field.ReflectValueOf(v))
 
 						for i := 0; i < f.Len(); i++ {
 							elem := f.Index(i)
 							for _, ref := range rel.References {
 								if ref.OwnPrimaryKey {
-									pv, _ := ref.PrimaryKey.ValueOf(db.Statement.Context, v)
-									db.AddError(ref.ForeignKey.Set(db.Statement.Context, elem, pv))
+									pv, _ := ref.PrimaryKey.ValueOf(v)
+									ref.ForeignKey.Set(elem, pv)
 								} else if ref.PrimaryValue != "" {
-									db.AddError(ref.ForeignKey.Set(db.Statement.Context, elem, ref.PrimaryValue))
+									ref.ForeignKey.Set(elem, ref.PrimaryValue)
 								}
 							}
 
-							relPrimaryValues := make([]interface{}, 0, len(rel.FieldSchema.PrimaryFields))
-							for _, pf := range rel.FieldSchema.PrimaryFields {
-								if pfv, ok := pf.ValueOf(db.Statement.Context, elem); !ok {
-									relPrimaryValues = append(relPrimaryValues, pfv)
-								}
-							}
-
-							cacheKey := utils.ToStringKey(relPrimaryValues)
-							if len(relPrimaryValues) != len(rel.FieldSchema.PrimaryFields) || !identityMap[cacheKey] {
-								identityMap[cacheKey] = true
-								if isPtr {
-									elems = reflect.Append(elems, elem)
-								} else {
-									elems = reflect.Append(elems, elem.Addr())
-								}
+							if isPtr {
+								elems = reflect.Append(elems, elem)
+							} else {
+								elems = reflect.Append(elems, elem.Addr())
 							}
 						}
 					}
@@ -237,7 +224,7 @@ func SaveAfterAssociations(create bool) func(db *gorm.DB) {
 						assignmentColumns = append(assignmentColumns, ref.ForeignKey.DBName)
 					}
 
-					saveAssociations(db, rel, elems, selectColumns, restricted, assignmentColumns)
+					saveAssociations(db, rel, elems.Interface(), selectColumns, restricted, assignmentColumns)
 				}
 			}
 
@@ -260,21 +247,21 @@ func SaveAfterAssociations(create bool) func(db *gorm.DB) {
 					joinValue := reflect.New(rel.JoinTable.ModelType)
 					for _, ref := range rel.References {
 						if ref.OwnPrimaryKey {
-							fv, _ := ref.PrimaryKey.ValueOf(db.Statement.Context, obj)
-							db.AddError(ref.ForeignKey.Set(db.Statement.Context, joinValue, fv))
+							fv, _ := ref.PrimaryKey.ValueOf(obj)
+							ref.ForeignKey.Set(joinValue, fv)
 						} else if ref.PrimaryValue != "" {
-							db.AddError(ref.ForeignKey.Set(db.Statement.Context, joinValue, ref.PrimaryValue))
+							ref.ForeignKey.Set(joinValue, ref.PrimaryValue)
 						} else {
-							fv, _ := ref.PrimaryKey.ValueOf(db.Statement.Context, elem)
-							db.AddError(ref.ForeignKey.Set(db.Statement.Context, joinValue, fv))
+							fv, _ := ref.PrimaryKey.ValueOf(elem)
+							ref.ForeignKey.Set(joinValue, fv)
 						}
 					}
 					joins = reflect.Append(joins, joinValue)
 				}
 
 				appendToElems := func(v reflect.Value) {
-					if _, zero := rel.Field.ValueOf(db.Statement.Context, v); !zero {
-						f := reflect.Indirect(rel.Field.ReflectValueOf(db.Statement.Context, v))
+					if _, zero := rel.Field.ValueOf(v); !zero {
+						f := reflect.Indirect(rel.Field.ReflectValueOf(v))
 
 						for i := 0; i < f.Len(); i++ {
 							elem := f.Index(i)
@@ -304,7 +291,7 @@ func SaveAfterAssociations(create bool) func(db *gorm.DB) {
 				// optimize elems of reflect value length
 				if elemLen := elems.Len(); elemLen > 0 {
 					if v, ok := selectColumns[rel.Name+".*"]; !ok || v {
-						saveAssociations(db, rel, elems, selectColumns, restricted, nil)
+						saveAssociations(db, rel, elems.Interface(), selectColumns, restricted, nil)
 					}
 
 					for i := 0; i < elemLen; i++ {
@@ -323,35 +310,40 @@ func SaveAfterAssociations(create bool) func(db *gorm.DB) {
 	}
 }
 
-func onConflictOption(stmt *gorm.Statement, s *schema.Schema, defaultUpdatingColumns []string) (onConflict clause.OnConflict) {
-	if len(defaultUpdatingColumns) > 0 || stmt.DB.FullSaveAssociations {
-		onConflict.Columns = make([]clause.Column, 0, len(s.PrimaryFieldDBNames))
-		for _, dbName := range s.PrimaryFieldDBNames {
-			onConflict.Columns = append(onConflict.Columns, clause.Column{Name: dbName})
-		}
+func onConflictOption(stmt *gorm.Statement, s *schema.Schema, selectColumns map[string]bool, restricted bool, defaultUpdatingColumns []string) clause.OnConflict {
+	if stmt.DB.FullSaveAssociations {
+		defaultUpdatingColumns = make([]string, 0, len(s.DBNames))
+		for _, dbName := range s.DBNames {
+			if v, ok := selectColumns[dbName]; (ok && !v) || (!ok && restricted) {
+				continue
+			}
 
-		onConflict.UpdateAll = stmt.DB.FullSaveAssociations
-		if !onConflict.UpdateAll {
-			onConflict.DoUpdates = clause.AssignmentColumns(defaultUpdatingColumns)
+			if !s.LookUpField(dbName).PrimaryKey {
+				defaultUpdatingColumns = append(defaultUpdatingColumns, dbName)
+			}
 		}
-	} else {
-		onConflict.DoNothing = true
 	}
 
-	return
+	if len(defaultUpdatingColumns) > 0 {
+		columns := make([]clause.Column, 0, len(s.PrimaryFieldDBNames))
+		for _, dbName := range s.PrimaryFieldDBNames {
+			columns = append(columns, clause.Column{Name: dbName})
+		}
+
+		return clause.OnConflict{
+			Columns:   columns,
+			DoUpdates: clause.AssignmentColumns(defaultUpdatingColumns),
+		}
+	}
+
+	return clause.OnConflict{DoNothing: true}
 }
 
-func saveAssociations(db *gorm.DB, rel *schema.Relationship, rValues reflect.Value, selectColumns map[string]bool, restricted bool, defaultUpdatingColumns []string) error {
-	// stop save association loop
-	if checkAssociationsSaved(db, rValues) {
-		return nil
-	}
-
+func saveAssociations(db *gorm.DB, rel *schema.Relationship, values interface{}, selectColumns map[string]bool, restricted bool, defaultUpdatingColumns []string) error {
 	var (
 		selects, omits []string
-		onConflict     = onConflictOption(db.Statement, rel.FieldSchema, defaultUpdatingColumns)
+		onConflict     = onConflictOption(db.Statement, rel.FieldSchema, selectColumns, restricted, defaultUpdatingColumns)
 		refName        = rel.Name + "."
-		values         = rValues.Interface()
 	)
 
 	for name, ok := range selectColumns {
@@ -395,25 +387,4 @@ func saveAssociations(db *gorm.DB, rel *schema.Relationship, rValues reflect.Val
 	}
 
 	return db.AddError(tx.Create(values).Error)
-}
-
-// check association values has been saved
-// if values kind is Struct, check it has been saved
-// if values kind is Slice/Array, check all items have been saved
-var visitMapStoreKey = "gorm:saved_association_map"
-
-func checkAssociationsSaved(db *gorm.DB, values reflect.Value) bool {
-	if visit, ok := db.Get(visitMapStoreKey); ok {
-		if v, ok := visit.(*visitMap); ok {
-			if loadOrStoreVisitMap(v, values) {
-				return true
-			}
-		}
-	} else {
-		vistMap := make(visitMap)
-		loadOrStoreVisitMap(&vistMap, values)
-		db.Set(visitMapStoreKey, &vistMap)
-	}
-
-	return false
 }

@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"context"
 	"reflect"
 	"regexp"
 	"strings"
@@ -60,13 +59,13 @@ func removeSettingFromTag(tag reflect.StructTag, names ...string) reflect.Struct
 }
 
 // GetRelationsValues get relations's values from a reflect value
-func GetRelationsValues(ctx context.Context, reflectValue reflect.Value, rels []*Relationship) (reflectResults reflect.Value) {
+func GetRelationsValues(reflectValue reflect.Value, rels []*Relationship) (reflectResults reflect.Value) {
 	for _, rel := range rels {
 		reflectResults = reflect.MakeSlice(reflect.SliceOf(reflect.PtrTo(rel.FieldSchema.ModelType)), 0, 1)
 
 		appendToResults := func(value reflect.Value) {
-			if _, isZero := rel.Field.ValueOf(ctx, value); !isZero {
-				result := reflect.Indirect(rel.Field.ReflectValueOf(ctx, value))
+			if _, isZero := rel.Field.ValueOf(value); !isZero {
+				result := reflect.Indirect(rel.Field.ReflectValueOf(value))
 				switch result.Kind() {
 				case reflect.Struct:
 					reflectResults = reflect.Append(reflectResults, result.Addr())
@@ -98,7 +97,7 @@ func GetRelationsValues(ctx context.Context, reflectValue reflect.Value, rels []
 }
 
 // GetIdentityFieldValuesMap get identity map from fields
-func GetIdentityFieldValuesMap(ctx context.Context, reflectValue reflect.Value, fields []*Field) (map[string][]reflect.Value, [][]interface{}) {
+func GetIdentityFieldValuesMap(reflectValue reflect.Value, fields []*Field) (map[string][]reflect.Value, [][]interface{}) {
 	var (
 		results       = [][]interface{}{}
 		dataResults   = map[string][]reflect.Value{}
@@ -111,7 +110,7 @@ func GetIdentityFieldValuesMap(ctx context.Context, reflectValue reflect.Value, 
 		results = [][]interface{}{make([]interface{}, len(fields))}
 
 		for idx, field := range fields {
-			results[0][idx], zero = field.ValueOf(ctx, reflectValue)
+			results[0][idx], zero = field.ValueOf(reflectValue)
 			notZero = notZero || !zero
 		}
 
@@ -136,7 +135,7 @@ func GetIdentityFieldValuesMap(ctx context.Context, reflectValue reflect.Value, 
 			fieldValues := make([]interface{}, len(fields))
 			notZero = false
 			for idx, field := range fields {
-				fieldValues[idx], zero = field.ValueOf(ctx, elem)
+				fieldValues[idx], zero = field.ValueOf(elem)
 				notZero = notZero || !zero
 			}
 
@@ -156,12 +155,12 @@ func GetIdentityFieldValuesMap(ctx context.Context, reflectValue reflect.Value, 
 }
 
 // GetIdentityFieldValuesMapFromValues get identity map from fields
-func GetIdentityFieldValuesMapFromValues(ctx context.Context, values []interface{}, fields []*Field) (map[string][]reflect.Value, [][]interface{}) {
+func GetIdentityFieldValuesMapFromValues(values []interface{}, fields []*Field) (map[string][]reflect.Value, [][]interface{}) {
 	resultsMap := map[string][]reflect.Value{}
 	results := [][]interface{}{}
 
 	for _, v := range values {
-		rm, rs := GetIdentityFieldValuesMap(ctx, reflect.Indirect(reflect.ValueOf(v)), fields)
+		rm, rs := GetIdentityFieldValuesMap(reflect.Indirect(reflect.ValueOf(v)), fields)
 		for k, v := range rm {
 			resultsMap[k] = append(resultsMap[k], v...)
 		}

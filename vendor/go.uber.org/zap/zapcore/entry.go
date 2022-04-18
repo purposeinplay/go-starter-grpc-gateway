@@ -219,9 +219,11 @@ func (ce *CheckedEntry) Write(fields ...Field) {
 	for i := range ce.cores {
 		err = multierr.Append(err, ce.cores[i].Write(ce.Entry, fields))
 	}
-	if err != nil && ce.ErrorOutput != nil {
-		fmt.Fprintf(ce.ErrorOutput, "%v write error: %v\n", ce.Time, err)
-		ce.ErrorOutput.Sync()
+	if ce.ErrorOutput != nil {
+		if err != nil {
+			fmt.Fprintf(ce.ErrorOutput, "%v write error: %v\n", ce.Time, err)
+			ce.ErrorOutput.Sync()
+		}
 	}
 
 	should, msg := ce.should, ce.Message

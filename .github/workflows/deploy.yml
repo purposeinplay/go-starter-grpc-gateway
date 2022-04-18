@@ -125,6 +125,7 @@ jobs:
 
   build-push-deploy:
     name: build-push-deploy
+    if: ${{ false }} # remove this line if you want to run the deploy job.
     needs: [lint-test,migrate]
     runs-on: ubuntu-latest
     steps:

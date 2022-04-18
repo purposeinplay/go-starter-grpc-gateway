@@ -5,7 +5,7 @@ import (
 )
 
 func BeginTransaction(db *gorm.DB) {
-	if !db.Config.SkipDefaultTransaction && db.Error == nil {
+	if !db.Config.SkipDefaultTransaction {
 		if tx := db.Begin(); tx.Error == nil {
 			db.Statement.ConnPool = tx.Statement.ConnPool
 			db.InstanceSet("gorm:started_transaction", true)
@@ -20,12 +20,11 @@ func BeginTransaction(db *gorm.DB) {
 func CommitOrRollbackTransaction(db *gorm.DB) {
 	if !db.Config.SkipDefaultTransaction {
 		if _, ok := db.InstanceGet("gorm:started_transaction"); ok {
-			if db.Error != nil {
-				db.Rollback()
-			} else {
+			if db.Error == nil {
 				db.Commit()
+			} else {
+				db.Rollback()
 			}
-
 			db.Statement.ConnPool = db.ConnPool
 		}
 	}

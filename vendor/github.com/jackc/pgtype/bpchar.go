@@ -2,7 +2,6 @@ package pgtype
 
 import (
 	"database/sql/driver"
-	"fmt"
 )
 
 // BPChar is fixed-length, blank padded char type
@@ -21,8 +20,7 @@ func (dst BPChar) Get() interface{} {
 
 // AssignTo assigns from src to dst.
 func (src *BPChar) AssignTo(dst interface{}) error {
-	switch src.Status {
-	case Present:
+	if src.Status == Present {
 		switch v := dst.(type) {
 		case *rune:
 			runes := []rune(src.String)
@@ -30,24 +28,9 @@ func (src *BPChar) AssignTo(dst interface{}) error {
 				*v = runes[0]
 				return nil
 			}
-		case *string:
-			*v = src.String
-			return nil
-		case *[]byte:
-			*v = make([]byte, len(src.String))
-			copy(*v, src.String)
-			return nil
-		default:
-			if nextDst, retry := GetAssignToDstType(dst); retry {
-				return src.AssignTo(nextDst)
-			}
-			return fmt.Errorf("unable to assign to %T", dst)
 		}
-	case Null:
-		return NullAssignTo(dst)
 	}
-
-	return fmt.Errorf("cannot decode %#v into %T", src, dst)
+	return (*Text)(src).AssignTo(dst)
 }
 
 func (BPChar) PreferredResultFormat() int16 {

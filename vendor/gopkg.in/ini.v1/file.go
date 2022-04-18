@@ -142,12 +142,6 @@ func (f *File) GetSection(name string) (*Section, error) {
 	return secs[0], err
 }
 
-// HasSection returns true if the file contains a section with given name.
-func (f *File) HasSection(name string) bool {
-	section, _ := f.GetSection(name)
-	return section != nil
-}
-
 // SectionsByName returns all sections with given name.
 func (f *File) SectionsByName(name string) ([]*Section, error) {
 	if len(name) == 0 {
@@ -174,9 +168,8 @@ func (f *File) SectionsByName(name string) ([]*Section, error) {
 func (f *File) Section(name string) *Section {
 	sec, err := f.GetSection(name)
 	if err != nil {
-		if name == "" {
-			name = DefaultSection
-		}
+		// Note: It's OK here because the only possible error is empty section name,
+		// but if it's empty, this piece of code won't be executed.
 		sec, _ = f.NewSection(name)
 		return sec
 	}
@@ -442,16 +435,16 @@ func (f *File) writeToBuffer(indent string) (*bytes.Buffer, error) {
 				kname = `"""` + kname + `"""`
 			}
 
-			writeKeyValue := func(val string) (bool, error) {
+			for _, val := range key.ValueWithShadows() {
 				if _, err := buf.WriteString(kname); err != nil {
-					return false, err
+					return nil, err
 				}
 
 				if key.isBooleanType {
 					if kname != sec.keyList[len(sec.keyList)-1] {
 						buf.WriteString(LineBreak)
 					}
-					return true, nil
+					continue KeyList
 				}
 
 				// Write out alignment spaces before "=" sign
@@ -468,24 +461,7 @@ func (f *File) writeToBuffer(indent string) (*bytes.Buffer, error) {
 					val = `"` + val + `"`
 				}
 				if _, err := buf.WriteString(equalSign + val + LineBreak); err != nil {
-					return false, err
-				}
-				return false, nil
-			}
-
-			shadows := key.ValueWithShadows()
-			if len(shadows) == 0 {
-				if _, err := writeKeyValue(""); err != nil {
 					return nil, err
-				}
-			}
-
-			for _, val := range shadows {
-				exitLoop, err := writeKeyValue(val)
-				if err != nil {
-					return nil, err
-				} else if exitLoop {
-					continue KeyList
 				}
 			}
 

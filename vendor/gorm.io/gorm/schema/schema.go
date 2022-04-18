@@ -73,25 +73,11 @@ type Tabler interface {
 
 // Parse get data type from dialector
 func Parse(dest interface{}, cacheStore *sync.Map, namer Namer) (*Schema, error) {
-	return ParseWithSpecialTableName(dest, cacheStore, namer, "")
-}
-
-// ParseWithSpecialTableName get data type from dialector with extra schema table
-func ParseWithSpecialTableName(dest interface{}, cacheStore *sync.Map, namer Namer, specialTableName string) (*Schema, error) {
 	if dest == nil {
 		return nil, fmt.Errorf("%w: %+v", ErrUnsupportedDataType, dest)
 	}
 
-	value := reflect.ValueOf(dest)
-	if value.Kind() == reflect.Ptr && value.IsNil() {
-		value = reflect.New(value.Type().Elem())
-	}
-	modelType := reflect.Indirect(value).Type()
-
-	if modelType.Kind() == reflect.Interface {
-		modelType = reflect.Indirect(reflect.ValueOf(dest)).Elem().Type()
-	}
-
+	modelType := reflect.ValueOf(dest).Type()
 	for modelType.Kind() == reflect.Slice || modelType.Kind() == reflect.Array || modelType.Kind() == reflect.Ptr {
 		modelType = modelType.Elem()
 	}
@@ -103,17 +89,7 @@ func ParseWithSpecialTableName(dest interface{}, cacheStore *sync.Map, namer Nam
 		return nil, fmt.Errorf("%w: %s.%s", ErrUnsupportedDataType, modelType.PkgPath(), modelType.Name())
 	}
 
-	// Cache the Schema for performance,
-	// Use the modelType or modelType + schemaTable (if it present) as cache key.
-	var schemaCacheKey interface{}
-	if specialTableName != "" {
-		schemaCacheKey = fmt.Sprintf("%p-%s", modelType, specialTableName)
-	} else {
-		schemaCacheKey = modelType
-	}
-
-	// Load exist schmema cache, return if exists
-	if v, ok := cacheStore.Load(schemaCacheKey); ok {
+	if v, ok := cacheStore.Load(modelType); ok {
 		s := v.(*Schema)
 		// Wait for the initialization of other goroutines to complete
 		<-s.initialized
@@ -127,9 +103,6 @@ func ParseWithSpecialTableName(dest interface{}, cacheStore *sync.Map, namer Nam
 	}
 	if en, ok := namer.(embeddedNamer); ok {
 		tableName = en.Table
-	}
-	if specialTableName != "" && specialTableName != tableName {
-		tableName = specialTableName
 	}
 
 	schema := &Schema{
@@ -146,13 +119,19 @@ func ParseWithSpecialTableName(dest interface{}, cacheStore *sync.Map, namer Nam
 	// When the schema initialization is completed, the channel will be closed
 	defer close(schema.initialized)
 
-	// Load exist schmema cache, return if exists
-	if v, ok := cacheStore.Load(schemaCacheKey); ok {
+	if v, loaded := cacheStore.LoadOrStore(modelType, schema); loaded {
 		s := v.(*Schema)
 		// Wait for the initialization of other goroutines to complete
 		<-s.initialized
 		return s, s.err
 	}
+
+	defer func() {
+		if schema.err != nil {
+			logger.Default.Error(context.Background(), schema.err.Error())
+			cacheStore.Delete(modelType)
+		}
+	}()
 
 	for i := 0; i < modelType.NumField(); i++ {
 		if fieldStruct := modelType.Field(i); ast.IsExported(fieldStruct.Name) {
@@ -222,7 +201,7 @@ func ParseWithSpecialTableName(dest interface{}, cacheStore *sync.Map, namer Nam
 		schema.PrimaryFieldDBNames = append(schema.PrimaryFieldDBNames, field.DBName)
 	}
 
-	for _, field := range schema.Fields {
+	for _, field := range schema.FieldsByDBName {
 		if field.HasDefaultValue && field.DefaultValueInterface == nil {
 			schema.FieldsWithDefaultDBValue = append(schema.FieldsWithDefaultDBValue, field)
 		}
@@ -254,21 +233,6 @@ func ParseWithSpecialTableName(dest interface{}, cacheStore *sync.Map, namer Nam
 		}
 	}
 
-	// Cache the schema
-	if v, loaded := cacheStore.LoadOrStore(schemaCacheKey, schema); loaded {
-		s := v.(*Schema)
-		// Wait for the initialization of other goroutines to complete
-		<-s.initialized
-		return s, s.err
-	}
-
-	defer func() {
-		if schema.err != nil {
-			logger.Default.Error(context.Background(), schema.err.Error())
-			cacheStore.Delete(modelType)
-		}
-	}()
-
 	if _, embedded := schema.cacheStore.Load(embeddedCacheKey); !embedded {
 		for _, field := range schema.Fields {
 			if field.DataType == "" && (field.Creatable || field.Updatable || field.Readable) {
@@ -280,20 +244,19 @@ func ParseWithSpecialTableName(dest interface{}, cacheStore *sync.Map, namer Nam
 			}
 
 			fieldValue := reflect.New(field.IndirectFieldType)
-			fieldInterface := fieldValue.Interface()
-			if fc, ok := fieldInterface.(CreateClausesInterface); ok {
+			if fc, ok := fieldValue.Interface().(CreateClausesInterface); ok {
 				field.Schema.CreateClauses = append(field.Schema.CreateClauses, fc.CreateClauses(field)...)
 			}
 
-			if fc, ok := fieldInterface.(QueryClausesInterface); ok {
+			if fc, ok := fieldValue.Interface().(QueryClausesInterface); ok {
 				field.Schema.QueryClauses = append(field.Schema.QueryClauses, fc.QueryClauses(field)...)
 			}
 
-			if fc, ok := fieldInterface.(UpdateClausesInterface); ok {
+			if fc, ok := fieldValue.Interface().(UpdateClausesInterface); ok {
 				field.Schema.UpdateClauses = append(field.Schema.UpdateClauses, fc.UpdateClauses(field)...)
 			}
 
-			if fc, ok := fieldInterface.(DeleteClausesInterface); ok {
+			if fc, ok := fieldValue.Interface().(DeleteClausesInterface); ok {
 				field.Schema.DeleteClauses = append(field.Schema.DeleteClauses, fc.DeleteClauses(field)...)
 			}
 		}
