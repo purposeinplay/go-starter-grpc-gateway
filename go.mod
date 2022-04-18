@@ -3,7 +3,7 @@ module github.com/purposeinplay/go-starter-grpc-gateway
 go 1.18
 
 require (
-	github.com/cenkalti/backoff/v4 v4.1.2
+	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/golang-migrate/migrate/v4 v4.15.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
