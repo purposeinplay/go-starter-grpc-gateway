@@ -27,7 +27,7 @@ const (
 
 // Pollute is a function to insert data in a datbase based on a YML.
 // Used only for testing.
-func Pollute(pollution interface{}, db *sql.DB) error {
+func Pollute(pollution any, db *sql.DB) error {
 	yamlPollution, err := yaml.Marshal(pollution)
 	if err != nil {
 		return fmt.Errorf("err while marshalling pollution yaml: %w", err)

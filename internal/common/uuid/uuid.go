@@ -52,7 +52,7 @@ func (u UUID) IsZero() bool {
 
 // Scan implements sql.Scanner and it's a wrapper
 // over the internal uuid Scan Implementation.
-func (u *UUID) Scan(src interface{}) error {
+func (u *UUID) Scan(src any) error {
 	return u.internalUUID.Scan(src)
 }
 

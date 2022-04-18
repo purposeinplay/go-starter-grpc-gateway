@@ -64,7 +64,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 }
 
 // Migrate runs the gorm migration for all models.
-func Migrate(db *gorm.DB, allModels []interface{}) error {
+func Migrate(db *gorm.DB, allModels []any) error {
 	if err := db.AutoMigrate(allModels...); err != nil {
 		return err
 	}

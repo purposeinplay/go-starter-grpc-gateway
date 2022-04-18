@@ -136,12 +136,12 @@ func (s *Server) reportErr(err error) error {
 	return nil
 }
 
-func (s *Server) handlePanicRecover(p interface{}) error {
+func (s *Server) handlePanicRecover(p any) error {
 	s.logPanic(p)
 
 	return status.Error(codes.Internal, "internal error.")
 }
 
-func (s *Server) logPanic(p interface{}) {
+func (s *Server) logPanic(p any) {
 	s.logger.Error("grpc panic", zap.Any("cause", p))
 }

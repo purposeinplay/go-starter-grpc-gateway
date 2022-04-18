@@ -247,7 +247,7 @@ func NewEmailNotProvided() *Error {
 }
 
 // As wraps errors.As.
-func As(err error, target interface{}) bool {
+func As(err error, target any) bool {
 	return errors.As(err, target)
 }
 

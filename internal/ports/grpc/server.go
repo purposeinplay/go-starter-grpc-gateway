@@ -70,7 +70,7 @@ func NewGrpcServer(
 
 	opts := []grpccommons.ServerOption{
 		grpccommons.WithUnaryServerInterceptorRecovery(
-			func(p interface{}) (err error) {
+			func(p any) (err error) {
 				return srv.handlePanicRecover(p)
 			},
 		),
