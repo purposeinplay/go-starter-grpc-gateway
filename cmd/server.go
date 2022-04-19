@@ -56,7 +56,7 @@ var ServerCmd = &cobra.Command{
 			}
 		}()
 
-		server := grpc.NewGrpcServer(ctx, logger, config, app, jwtManager)
+		server := grpc.NewGrpcServer(logger, config, app, jwtManager)
 		defer func() {
 			err := server.Close()
 			if err != nil {
