@@ -18,30 +18,30 @@ func (s *Server) GetUser(
 ) (*startergrpc.GetUserResponse, error) {
 	u, err := auth.UUIDFromContextJWT(ctx, s.jwtManager)
 	if err != nil {
-		return nil, s.handleErr(fmt.Errorf(
+		return nil, fmt.Errorf(
 			"authenticate user: %w",
 			err,
-		))
+		)
 	}
 
 	if u.String() != req.Id {
-		return nil, s.handleErr(errors.NewUnauthorizedError("user"))
+		return nil, errors.NewUnauthorizedError("user")
 	}
 
 	userID, err := uuid.Parse(req.Id)
 	if err != nil {
-		return nil, s.handleErr(fmt.Errorf(
+		return nil, fmt.Errorf(
 			"parse user id: %w",
 			err,
-		))
+		)
 	}
 
 	user, err := s.app.Queries.UserByID.Handle(ctx, userID)
 	if err != nil {
-		return nil, s.handleErr(fmt.Errorf(
+		return nil, fmt.Errorf(
 			"user by id query: %w",
 			err,
-		))
+		)
 	}
 
 	return &startergrpc.GetUserResponse{

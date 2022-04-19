@@ -8,7 +8,6 @@ import (
 
 	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app/command"
 	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/errors"
 	"go.uber.org/zap"
@@ -16,10 +15,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *Server) handleErr(err error) error {
+func (s Server) handleErr(err error) error {
 	var (
 		applicationError *errors.Error
-		details          proto.Message
+		details          *startergrpc.ErrorResponse
 		grpcStatus       *status.Status
 	)
 
@@ -45,10 +44,10 @@ func (s *Server) handleErr(err error) error {
 	default:
 		// Report the error to an external service
 		reportErr := s.reportErr(err)
-		if err != nil {
+		if reportErr != nil {
 			// Log the error received from the external service
 			// and continue execution.
-			s.logErr(fmt.Errorf("report: %w", reportErr))
+			s.logErr(fmt.Errorf("report error: %w", reportErr))
 		}
 
 		// Create a GRPC status that doesn't leak any information
@@ -56,23 +55,30 @@ func (s *Server) handleErr(err error) error {
 		grpcStatus = status.New(codes.Internal, "internal error.")
 	}
 
-	// Check if the details message is not nil
-	// and attach it to the grpc status.
-	if details != nil {
-		grpcStatus, err = grpcStatus.WithDetails(details)
-		if err != nil {
-			// if attaching details to the grpc status
-			// log and report the error.
-			s.logErr(err)
-
-			reportErr := s.reportErr(err)
-			if reportErr != nil {
-				s.logErr(fmt.Errorf("report: %w", err))
-			}
-		}
+	// Check if the details message is nil
+	if details == nil {
+		return grpcStatus.Err()
 	}
 
-	// Return the grpc Status as an immutable error.
+	grpcStatusWithDetails, attachDetailsErr := grpcStatus.WithDetails(details)
+	if attachDetailsErr == nil {
+		// return status with details
+		return grpcStatusWithDetails.Err()
+	}
+
+	attachDetailsErr = fmt.Errorf(
+		"attach details to status: %w",
+		attachDetailsErr,
+	)
+
+	s.logErr(attachDetailsErr)
+
+	reportErr := s.reportErr(attachDetailsErr)
+	if reportErr != nil {
+		s.logErr(fmt.Errorf("report: %w", reportErr))
+	}
+
+	// Return the status object without details
 	return grpcStatus.Err()
 }
 
@@ -119,12 +125,12 @@ func errorDetailsToGRPCDetails(d *errors.Error) *startergrpc.ErrorResponse {
 }
 
 // logErr logs the error.
-func (s *Server) logErr(err error) {
+func (s Server) logErr(err error) {
 	s.logger.Error("grpc", zap.Error(err))
 }
 
 // reportErr reports an error to an external service.
-func (s *Server) reportErr(err error) error {
+func (s Server) reportErr(err error) error {
 	reportErr := s.app.Commands.ReportError.Handle(
 		context.Background(),
 		command.ReportError{Err: err},
@@ -136,12 +142,12 @@ func (s *Server) reportErr(err error) error {
 	return nil
 }
 
-func (s *Server) handlePanicRecover(p any) error {
+func (s Server) handlePanicRecover(p any) error {
 	s.logPanic(p)
 
 	return status.Error(codes.Internal, "internal error.")
 }
 
-func (s *Server) logPanic(p any) {
+func (s Server) logPanic(p any) {
 	s.logger.Error("grpc panic", zap.Any("cause", p))
 }

@@ -1,143 +1,105 @@
-package grpc
+package grpc_test
 
 import (
 	"context"
+	"github.com/matryer/is"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/app/command"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/errors"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/mocks"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/domain/user"
+	"github.com/stretchr/testify/mock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"testing"
 
 	"github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
-
-	"github.com/stretchr/testify/assert"
 )
-
-// func TestGetUser_ByIDWithUnauthenticated(t *testing.T) {
-//	cfg := &config.Config{
-//		SERVER: struct {
-//			Port    int    `mapstructure:"port"`
-//			Address string `mapstructure:"address"`
-//		}{
-//			Port:    7350,
-//			Address: "0.0.0.0",
-//		},
-//		JWT: struct {
-//			Secret          string `mapstructure:"secret"`
-//			RefreshTokenExp int    `mapstructure:"refresh_token_exp"`
-//			AccessTokenExp  int    `mapstructure:"access_token_exp"`
-//		}{
-//			Secret:          "5649e3d0-7ba4-411d-a721-202c1c626f5c",
-//			RefreshTokenExp: 3600,
-//			AccessTokenExp:  900,
-//		},
-//	}
-//
-//	var (
-//		_, conn = newServerOnRandomPort(t, app.Application{}, cfg)
-//		client  = apigrpc.NewGoStarterClient(conn)
-//		ctx     = context.TODO()
-//		i       = is.New(t)
-//	)
-//
-//	_, err := client.GetUser(ctx, &apigrpc.GetUserRequest{
-//		Id: "1",
-//	})
-//	i.NoErr(err)
-//}
 
 func TestServer_CreateUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-
-	_, conn, _ := newTestServer(
-		t,
+	var (
+		i   = is.New(t)
+		ctx = context.TODO()
 	)
 
-	client := startergrpc.NewGoStarterClient(conn)
+	tests := map[string]struct {
+		user            *user.User
+		createUserErr   error
+		expectedGrpcErr error
+		reportErr       error
+	}{
+		"Success": {
+			user:            user.MustNew(testID, "user@email.com"),
+			createUserErr:   nil,
+			expectedGrpcErr: nil,
+			reportErr:       nil,
+		},
+		"Error_InvalidID": {
+			user:            user.MustNew(testID, "user@email.com"),
+			createUserErr:   errors.NewInvalidError("invalid id"),
+			expectedGrpcErr: status.Error(codes.InvalidArgument, "invalid id"),
+			reportErr:       nil,
+		},
+	}
 
-	_, err := client.CreateUser(ctx, &startergrpc.CreateUserRequest{
-		Email: "test@email.com",
-	})
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.NoError(t, err)
+			var (
+				mockUserRepo      = new(mocks.UserRepository)
+				mockReportService = new(mocks.ReportService)
+			)
+
+			_, conn := newTestServer(
+				t,
+				app.Application{
+					Commands: app.Commands{
+						CreateUser:  command.MustNewCreateUserHandler(mockUserRepo),
+						ReportError: command.MustNewReportErrorHandler(mockReportService),
+					},
+				},
+			)
+
+			client := startergrpc.NewGoStarterClient(conn)
+
+			mockUserRepo.
+				On(
+					"CreateUser",
+					mock.AnythingOfType("*context.valueCtx"),
+					test.user,
+				).
+				Return(
+					test.createUserErr,
+				)
+
+			mockReportService.
+				On(
+					"ReportError",
+					mock.Anything,
+					mock.Anything,
+				).
+				Return(
+					test.reportErr,
+				).
+				Maybe()
+
+			_, err := client.CreateUser(ctx, &startergrpc.CreateUserRequest{
+				Email: test.user.Email(),
+			})
+			if err != nil {
+				st, ok := status.FromError(err)
+				i.True(ok)
+
+				expSt, ok := status.FromError(test.expectedGrpcErr)
+				i.True(ok)
+
+				i.Equal(expSt.Code(), st.Code())
+				i.Equal(expSt.Message(), st.Message())
+			}
+		})
+	}
+
 }
-
-// func (ts *StarterTestSuite) TestStarterAPI_FindUserWithUnauthenticated() {
-// 	ctx := context.Background()
-//
-// 	authToken := "123"
-// 	ctx = metadata.AppendToOutgoingContext(ctx, "authorization",
-// 	"Bearer "+authToken)
-//
-// 	req := &apigrpc.FindUserRequest{Id: "1"}
-//
-// 	_, err := ts.client.FindUser(ctx, req)
-// 	ts.Error(err)
-//
-// 	st, ok := status.FromError(err)
-// 	ts.True(ok)
-//
-// 	ts.Equal(codes.Unauthenticated, st.Code())
-// }
-//
-// func (ts *StarterTestSuite) TestStarterAPI_FindUsers() {
-// 	ctx := context.Background()
-//
-// 	authToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ
-// 	zdWIiOiI5NzU5MDMwMS1iNWJjLTRkM2YtOWRmNS0zNjdhOWMzYjVjMmQiLCJuY
-// 	W1lIjoiSm9obiBEb2UiLCJpYXQiOjE1MTYyMzkwMjJ9.KAEUKhHbWegoQMA3HH
-// 	qBvP7KZ3oXn7wdaBDr42PQJ4U"
-// 	ctx = metadata.AppendToOutgoingContext(ctx,
-// 	"authorization", "Bearer "+authToken)
-//
-// 	user1 := user.User{
-// 		Base: domain.Base{
-// 			ID: uuid.Parse("97590301-b5bc-4d3f-9df5-367a9c3b5c2d"),
-// 		},
-// 		Email: "me@email.com",
-// 	}
-//
-// 	ts.db.Create(&user1)
-//
-// 	req := new(emptypb.Empty)
-//
-// 	res, err := ts.client.FindUsers(ctx, req)
-// 	ts.NoError(err)
-//
-// 	ts.Assert().Equal(1, len(res.GetUsers()))
-//
-// 	u := res.GetUsers()[0]
-//
-// 	ts.Equal("97590301-b5bc-4d3f-9df5-367a9c3b5c2d", u.Id)
-// 	ts.Equal("me@email.com", u.Email)
-// }
-//
-// func (ts *StarterTestSuite) TestStarterAPI_CreateUser() {
-// 	ctx := context.Background()
-//
-// 	req := apigrpc.CreateUserRequest{
-// 		Email: "me@email.com",
-// 	}
-//
-// 	res, err := ts.client.CreateUser(ctx, &req)
-// 	ts.NoError(err)
-//
-// 	ts.Assert().Equal("me@email.com", res.GetUser().Email)
-// }
-//
-// func (ts *StarterTestSuite) TestStarterAPI_CreateUserWithError() {
-// 	ctx := context.Background()
-//
-// 	req := apigrpc.CreateUserRequest{
-// 		Email: "",
-// 	}
-//
-// 	_, err := ts.client.CreateUser(ctx, &req)
-// 	ts.Error(err)
-//
-// 	st, ok := status.FromError(err)
-// 	ts.True(ok)
-//
-// 	details := st.Details()
-// 	detailsErr := details[0].(*apigrpc.StarterErrorResponse)
-// 	ts.Assert().Equal(apigrpc.ErrorCode_EMAIL_REQUIRED_ERROR,
-// 		detailsErr.GetError().GetCode())
-// }

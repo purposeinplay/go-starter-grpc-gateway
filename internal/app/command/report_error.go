@@ -17,8 +17,8 @@ type ReportErrorHandler struct {
 	reportService ReportService
 }
 
-// NewReportErrorHandler returns a new ReportErrorHandler.
-func NewReportErrorHandler(
+// MustNewReportErrorHandler returns a new ReportErrorHandler.
+func MustNewReportErrorHandler(
 	reportService ReportService,
 ) ReportErrorHandler {
 	return ReportErrorHandler{

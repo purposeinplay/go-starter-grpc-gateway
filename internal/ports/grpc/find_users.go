@@ -18,10 +18,10 @@ func (s *Server) FindUsers(
 ) (*startergrpc.FindUsersResponse, error) {
 	userID, err := auth.UUIDFromContextJWT(ctx, s.jwtManager)
 	if err != nil {
-		return nil, s.handleErr(fmt.Errorf(
+		return nil, fmt.Errorf(
 			"user id from context: %w",
 			err,
-		))
+		)
 	}
 
 	users, err := s.app.Queries.FindUsers.Handle(
@@ -31,10 +31,10 @@ func (s *Server) FindUsers(
 		},
 	)
 	if err != nil {
-		return nil, s.handleErr(fmt.Errorf(
+		return nil, fmt.Errorf(
 			"find users query: %w",
 			err,
-		))
+		)
 	}
 
 	resUsers := make([]*startergrpc.User, 0, len(users))

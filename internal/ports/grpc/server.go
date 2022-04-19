@@ -3,15 +3,13 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"net"
-	"strconv"
-
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	startergrpc "github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
+	"net"
 
 	"github.com/purposeinplay/go-commons/auth"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -33,7 +31,6 @@ type Server struct {
 	grpc_health_v1.UnimplementedHealthServer
 	startergrpc.UnimplementedGoStarterServer
 
-	ctx        context.Context
 	logger     *zap.Logger
 	app        app.Application
 	cfg        *config.Config
@@ -43,14 +40,12 @@ type Server struct {
 
 // NewGrpcServer runs a grpc server.
 func NewGrpcServer(
-	ctx context.Context,
 	logger *zap.Logger,
 	cfg *config.Config,
 	application app.Application,
 	jwtManager *auth.JWTManager,
 ) *Server {
 	srv := &Server{
-		ctx:        ctx,
 		app:        application,
 		cfg:        cfg,
 		logger:     logger.Named("grpc.server"),
@@ -104,30 +99,24 @@ func NewGrpcServer(
 
 // NewGrpcTestServer returns a new grpc server to be used in tests.
 func NewGrpcTestServer(
-	ctx context.Context,
 	logger *zap.Logger,
-	cfg *config.Config,
 	application app.Application,
 	listener net.Listener,
 ) *Server {
 	srv := &Server{
-		ctx:    ctx,
 		app:    application,
-		cfg:    cfg,
 		logger: logger.Named("grpc.server"),
 	}
 
 	opts := []grpccommons.ServerOption{
+		grpccommons.WithUnaryServerInterceptorHandleErr(srv.handleErr),
+
 		grpccommons.WithNoGateway(),
-		grpccommons.WithDebug(logger),
-		grpccommons.WithAddress(cfg.SERVER.Address),
+		grpccommons.WithGRPCListener(listener),
 		grpccommons.WithUnaryServerInterceptorLogger(
 			logger.Named("grpc.test_server.interceptor"),
 		),
-		grpccommons.WithGRPCListener(listener),
-		grpccommons.WithUnaryServerInterceptorCodeGen(),
 		grpccommons.WithRegisterServerFunc(srv.registerGrpcServer),
-		grpccommons.WithRegisterGatewayFunc(srv.registerGatewayServer),
 		grpccommons.WithDebug(logger.Named("grpc.server.debug")),
 	}
 
@@ -183,19 +172,14 @@ func (s *Server) registerGrpcServer(server *grpc.Server) {
 	grpc_health_v1.RegisterHealthServer(server, s)
 }
 
-func (s *Server) registerGatewayServer(
+func (s Server) registerGatewayServer(
 	mux *runtime.ServeMux,
 	dialOptions []grpc.DialOption,
 ) error {
-	host, port, err := parseHostPort(s.cfg.SERVER.Address)
-	if err != nil {
-		return fmt.Errorf("could not parse server address: %w", err)
-	}
-
-	err = startergrpc.RegisterGoStarterHandlerFromEndpoint(
+	err := startergrpc.RegisterGoStarterHandlerFromEndpoint(
 		context.Background(),
 		mux,
-		fmt.Sprintf("%v:%v", host, port-1),
+		fmt.Sprintf("%s:%d", s.cfg.SERVER.Address, s.cfg.SERVER.Port),
 		dialOptions,
 	)
 	if err != nil {
@@ -203,18 +187,4 @@ func (s *Server) registerGatewayServer(
 	}
 
 	return nil
-}
-
-func parseHostPort(address string) (string, int, error) { //nolint:gocritic
-	hostString, portString, err := net.SplitHostPort(address)
-	if err != nil {
-		return "", 0, fmt.Errorf("invalid address: %w", err)
-	}
-
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		return "", 0, fmt.Errorf("parse port: %w", err)
-	}
-
-	return hostString, port, nil
 }

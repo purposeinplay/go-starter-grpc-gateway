@@ -21,4 +21,4 @@ migrate-test: ## Run migrations.
 
 .PHONY: check
 lint:
-	golangci-lint run --build-tags=dev
+	golangci-lint run

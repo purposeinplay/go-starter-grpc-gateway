@@ -22,10 +22,10 @@ func (s *Server) CreateUser(
 		Email: req.Email,
 	})
 	if err != nil {
-		return nil, s.handleErr(fmt.Errorf(
+		return nil, fmt.Errorf(
 			"create user command: %w",
 			err,
-		))
+		)
 	}
 
 	return &startergrpc.CreateUserResponse{

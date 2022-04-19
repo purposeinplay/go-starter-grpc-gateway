@@ -1,28 +1,16 @@
-package grpc
+package grpc_test
 
 import (
-	"github.com/purposeinplay/go-commons/psqltest"
-	"log"
-	"os"
+	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/uuid"
 	"testing"
-
-	// revive:disable-next-line:line-length-limit
-	"github.com/purposeinplay/go-starter-grpc-gateway/internal/common/config"
 )
 
-var cfg *config.Config
+var testID = uuid.New()
 
 func TestMain(m *testing.M) {
-	var err error
-	cfg, err = config.LoadTestConfig("../../../config.test.yaml")
+	revert := uuid.SetTestUUID(testID)
 
-	if err != nil {
-		log.Fatalf("error loading config: %+v", err)
-	}
+	defer revert()
 
-	psqltest.Register(dsn)
-
-	exitVal := m.Run()
-
-	os.Exit(exitVal)
+	m.Run()
 }

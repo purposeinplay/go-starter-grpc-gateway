@@ -61,3 +61,26 @@ func (u *UUID) Scan(src any) error {
 func (u UUID) Value() (driver.Value, error) {
 	return u.internalUUID.Value()
 }
+
+// SetTestUUID sets the Reader from where the uuid
+// package reads random bytes to a bogus reader that always
+// returns the same data in order to provide deterministic ids.
+//
+// It returns a function that reverts the action.
+func SetTestUUID(testUUID UUID) func() {
+	uuid.SetRand(testRand{uuid: testUUID})
+
+	return func() {
+		uuid.SetRand(nil)
+	}
+}
+
+type testRand struct {
+	uuid UUID
+}
+
+func (r testRand) Read(p []byte) (int, error) {
+	n := copy(p, r.uuid.internalUUID[:])
+
+	return n, nil
+}
