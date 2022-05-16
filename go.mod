@@ -34,7 +34,7 @@ require (
 )
 
 require (
-	github.com/go-playground/validator/v10 v10.10.1
+	github.com/go-playground/validator/v10 v10.11.0
 	github.com/matryer/is v1.4.0
 	github.com/ory/dockertest/v3 v3.8.1
 )
