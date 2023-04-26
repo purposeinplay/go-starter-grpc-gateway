@@ -71,7 +71,9 @@ func NewGrpcServer(
 		grpccommons.WithUnaryServerInterceptor(
 			authInterceptor.Unary(),
 		),
-		grpccommons.WithAddress(cfg.SERVER.Address),
+		grpccommons.WithAddress(
+			fmt.Sprintf("%s:%d", cfg.SERVER.Address, cfg.SERVER.Port),
+		),
 		grpccommons.WithUnaryServerInterceptorLogger(
 			logger.Named("grpc.server.interceptor"),
 		),
