@@ -3,9 +3,10 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"net"
+
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	startergrpc "github.com/purposeinplay/go-starter-grpc-gateway/apigrpc/v1"
-	"net"
 
 	"github.com/purposeinplay/go-commons/auth"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -70,7 +71,9 @@ func NewGrpcServer(
 		grpccommons.WithUnaryServerInterceptor(
 			authInterceptor.Unary(),
 		),
-		grpccommons.WithAddress(cfg.SERVER.Address),
+		grpccommons.WithAddress(
+			fmt.Sprintf("%s:%d", cfg.SERVER.Address, cfg.SERVER.Port),
+		),
 		grpccommons.WithUnaryServerInterceptorLogger(
 			logger.Named("grpc.server.interceptor"),
 		),
@@ -179,7 +182,7 @@ func (s Server) registerGatewayServer(
 	err := startergrpc.RegisterGoStarterHandlerFromEndpoint(
 		context.Background(),
 		mux,
-		fmt.Sprintf("%s:%d", s.cfg.SERVER.Address, s.cfg.SERVER.Port),
+		fmt.Sprintf("%s:%d", s.cfg.SERVER.Address, s.cfg.SERVER.Port-1),
 		dialOptions,
 	)
 	if err != nil {
