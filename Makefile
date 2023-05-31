@@ -17,8 +17,12 @@ test: ## Run tests.
 
 .PHONY: migrate-test
 migrate-test: ## Run migrations.
-	go run main.go migrate --config config.test.yaml
+	go run main.go migrate --config=./config/config.test.yaml
 
 .PHONY: check
 lint:
 	golangci-lint run
+
+.PHONY: run-dev
+run-dev: ## Runs a development environment
+	docker-compose -f ./d8t/docker-compose.dev.yml up
