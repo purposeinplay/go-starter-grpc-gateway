@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 services:
   go-starter:
     image: purposeinplay/go-starter-grpc-gateway
@@ -28,4 +28,4 @@ services:
       POSTGRES_PASSWORD: gostarter
       POSTGRES_DB: gostarter
     ports:
-      - 4433:5432
+      - 5432:5432
