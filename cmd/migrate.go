@@ -50,7 +50,7 @@ var migrateCmd = &cobra.Command{
 		}
 
 		migrator, err := migrate.NewWithDatabaseInstance(
-			"file://./migrate/",
+			"file://./sql/migrate/",
 			c.DB.NAME, driver)
 		if err != nil {
 			return fmt.Errorf("new database migrate instance: %w", err)
