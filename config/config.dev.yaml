@@ -4,7 +4,7 @@ SERVER:
 
 DB:
   DRIVER: postgres
-  HOST: 0.0.0.0
+  HOST: db
   USER: test
   PASSWORD: pass
   NAME: test
