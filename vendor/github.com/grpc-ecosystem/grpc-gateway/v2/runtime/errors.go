@@ -108,6 +108,10 @@ func DefaultHTTPErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marsh
 	contentType := marshaler.ContentType(pb)
 	w.Header().Set("Content-Type", contentType)
 
+	if s.Code() == codes.Unauthenticated {
+		w.Header().Set("WWW-Authenticate", s.Message())
+	}
+
 	buf, merr := marshaler.Marshal(pb)
 	if merr != nil {
 		grpclog.Infof("Failed to marshal error message %q: %v", s, merr)
@@ -158,10 +162,11 @@ func DefaultStreamErrorHandler(_ context.Context, err error) *status.Status {
 
 // DefaultRoutingErrorHandler is our default handler for routing errors.
 // By default http error codes mapped on the following error codes:
-//   NotFound -> grpc.NotFound
-//   StatusBadRequest -> grpc.InvalidArgument
-//   MethodNotAllowed -> grpc.Unimplemented
-//   Other -> grpc.Internal, method is not expecting to be called for anything else
+//
+//	NotFound -> grpc.NotFound
+//	StatusBadRequest -> grpc.InvalidArgument
+//	MethodNotAllowed -> grpc.Unimplemented
+//	Other -> grpc.Internal, method is not expecting to be called for anything else
 func DefaultRoutingErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, r *http.Request, httpStatus int) {
 	sterr := status.Error(codes.Internal, "Unexpected routing error")
 	switch httpStatus {
