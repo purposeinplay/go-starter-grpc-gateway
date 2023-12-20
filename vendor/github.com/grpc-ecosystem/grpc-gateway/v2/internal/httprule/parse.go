@@ -118,6 +118,10 @@ type parser struct {
 
 // topLevelSegments is the target of this parser.
 func (p *parser) topLevelSegments() ([]segment, error) {
+	if _, err := p.accept(typeEOF); err == nil {
+		p.tokens = p.tokens[:0]
+		return []segment{literal(eof)}, nil
+	}
 	segs, err := p.segments()
 	if err != nil {
 		return nil, err
@@ -271,11 +275,12 @@ func (p *parser) accept(term termType) (string, error) {
 // expectPChars determines if "t" consists of only pchars defined in RFC3986.
 //
 // https://www.ietf.org/rfc/rfc3986.txt, P.49
-//   pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
-//   unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
-//   sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
-//                 / "*" / "+" / "," / ";" / "="
-//   pct-encoded   = "%" HEXDIG HEXDIG
+//
+//	pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
+//	unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
+//	sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
+//	              / "*" / "+" / "," / ";" / "="
+//	pct-encoded   = "%" HEXDIG HEXDIG
 func expectPChars(t string) error {
 	const (
 		init = iota
