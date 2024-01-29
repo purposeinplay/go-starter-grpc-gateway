@@ -2,13 +2,16 @@ package descriptor
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/codegenerator"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/descriptor/openapiconfig"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"google.golang.org/genproto/googleapis/api/annotations"
+	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
@@ -24,6 +27,9 @@ type Registry struct {
 
 	// files is a mapping from file path to descriptor
 	files map[string]*File
+
+	// meths is a mapping from fully-qualified method name to descriptor
+	meths map[string]*Method
 
 	// prefix is a prefix to be inserted to golang package paths generated from proto package names.
 	prefix string
@@ -46,9 +52,6 @@ type Registry struct {
 	// mergeFileName target OpenAPI file name after merge
 	mergeFileName string
 
-	// allowRepeatedFieldsInBody permits repeated field in body field path of `google.api.http` annotation option
-	allowRepeatedFieldsInBody bool
-
 	// includePackageInTags controls whether the package name defined in the `package` directive
 	// in the proto file can be prepended to the gRPC service name in the `Tags` field of every operation.
 	includePackageInTags bool
@@ -61,18 +64,38 @@ type Registry struct {
 	// with gRPC-Gateway response, if it uses json tags for marshaling.
 	useJSONNamesForFields bool
 
-	// useFQNForOpenAPIName if true OpenAPI names will use the full qualified name (FQN) from proto definition,
-	// and generate a dot-separated OpenAPI name concatenating all elements from the proto FQN.
-	// If false, the default behavior is to concat the last 2 elements of the FQN if they are unique, otherwise concat
-	// all the elements of the FQN without any separator
-	useFQNForOpenAPIName bool
+	// openAPINamingStrategy is the naming strategy to use for assigning OpenAPI field and parameter names. This can be one of the following:
+	// - `legacy`: use the legacy naming strategy from protoc-gen-swagger, that generates unique but not necessarily
+	//             maximally concise names. Components are concatenated directly, e.g., `MyOuterMessageMyNestedMessage`.
+	// - `simple`: use a simple heuristic for generating unique and concise names. Components are concatenated using
+	//             dots as a separator, e.g., `MyOuterMesage.MyNestedMessage` (if `MyNestedMessage` alone is unique,
+	//             `MyNestedMessage` will be used as the OpenAPI name).
+	// - `fqn`:    always use the fully-qualified name of the proto message (leading dot removed) as the OpenAPI
+	//             name.
+	openAPINamingStrategy string
+
+	// visibilityRestrictionSelectors is a map of selectors for `google.api.VisibilityRule`s that will be included in the OpenAPI output.
+	visibilityRestrictionSelectors map[string]bool
 
 	// useGoTemplate determines whether you want to use GO templates
 	// in your protofile comments
 	useGoTemplate bool
 
+	// goTemplateArgs specifies a list of key value pair inputs to be displayed in Go templates
+	goTemplateArgs map[string]string
+
+	// ignoreComments determines whether all protofile comments should be excluded from output
+	ignoreComments bool
+
+	// removeInternalComments determines whether to remove substrings in comments that begin with
+	// `(--` and end with `--)` as specified in https://google.aip.dev/192#internal-comments.
+	removeInternalComments bool
+
 	// enumsAsInts render enum as integer, as opposed to string
 	enumsAsInts bool
+
+	// omitEnumDefaultValue omits default value of enum
+	omitEnumDefaultValue bool
 
 	// disableDefaultErrors disables the generation of the default error types.
 	// This is useful for users who have defined custom error handling.
@@ -86,6 +109,9 @@ type Registry struct {
 	// warnOnUnboundMethods causes the registry to emit warning logs if an RPC method
 	// has no HttpRule annotation.
 	warnOnUnboundMethods bool
+
+	// proto3OptionalNullable specifies whether Proto3 Optional fields should be marked as x-nullable.
+	proto3OptionalNullable bool
 
 	// fileOptions is a mapping of file name to additional OpenAPI file options
 	fileOptions map[string]*options.Swagger
@@ -112,6 +138,28 @@ type Registry struct {
 
 	// recursiveDepth sets the maximum depth of a field parameter
 	recursiveDepth int
+
+	// annotationMap is used to check for duplicate HTTP annotations
+	annotationMap map[annotationIdentifier]struct{}
+
+	// disableServiceTags disables the generation of service tags.
+	// This is useful if you do not want to expose the names of your backend grpc services.
+	disableServiceTags bool
+
+	// disableDefaultResponses disables the generation of default responses.
+	// Useful if you have to support custom response codes that are not 200.
+	disableDefaultResponses bool
+
+	// useAllOfForRefs, if set, will use allOf as container for $ref to preserve same-level
+	// properties
+	useAllOfForRefs bool
+
+	// allowPatchFeature determines whether to use PATCH feature involving update masks (using google.protobuf.FieldMask).
+	allowPatchFeature bool
+
+	// preserveRPCOrder, if true, will ensure the order of paths emitted in openapi swagger files mirror
+	// the order of RPC methods found in proto files. If false, emitted paths will be ordered alphabetically.
+	preserveRPCOrder bool
 }
 
 type repeatedFieldSeparator struct {
@@ -119,15 +167,24 @@ type repeatedFieldSeparator struct {
 	sep  rune
 }
 
+type annotationIdentifier struct {
+	method       string
+	pathTemplate string
+	service      *Service
+}
+
 // NewRegistry returns a new Registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		msgs:              make(map[string]*Message),
-		enums:             make(map[string]*Enum),
-		files:             make(map[string]*File),
-		pkgMap:            make(map[string]string),
-		pkgAliases:        make(map[string]string),
-		externalHTTPRules: make(map[string][]*annotations.HttpRule),
+		msgs:                           make(map[string]*Message),
+		enums:                          make(map[string]*Enum),
+		meths:                          make(map[string]*Method),
+		files:                          make(map[string]*File),
+		pkgMap:                         make(map[string]string),
+		pkgAliases:                     make(map[string]string),
+		externalHTTPRules:              make(map[string][]*annotations.HttpRule),
+		openAPINamingStrategy:          "legacy",
+		visibilityRestrictionSelectors: make(map[string]bool),
 		repeatedPathParamSeparator: repeatedFieldSeparator{
 			name: "csv",
 			sep:  ',',
@@ -137,6 +194,7 @@ func NewRegistry() *Registry {
 		messageOptions: make(map[string]*options.Schema),
 		serviceOptions: make(map[string]*options.Tag),
 		fieldOptions:   make(map[string]*options.JSONSchema),
+		annotationMap:  make(map[annotationIdentifier]struct{}),
 		recursiveDepth: 1000,
 	}
 }
@@ -159,12 +217,18 @@ func (r *Registry) LoadFromPlugin(gen *protogen.Plugin) error {
 }
 
 func (r *Registry) load(gen *protogen.Plugin) error {
-	for filePath, f := range gen.FilesByPath {
-		r.loadFile(filePath, f)
+	filePaths := make([]string, 0, len(gen.FilesByPath))
+	for filePath := range gen.FilesByPath {
+		filePaths = append(filePaths, filePath)
+	}
+	sort.Strings(filePaths)
+
+	for _, filePath := range filePaths {
+		r.loadFile(filePath, gen.FilesByPath[filePath])
 	}
 
-	for filePath, f := range gen.FilesByPath {
-		if !f.Generate {
+	for _, filePath := range filePaths {
+		if !gen.FilesByPath[filePath].Generate {
 			continue
 		}
 		file := r.files[filePath]
@@ -185,7 +249,7 @@ func (r *Registry) loadFile(filePath string, file *protogen.File) {
 		Name: string(file.GoPackageName),
 	}
 	if r.standalone {
-		pkg.Alias = "ext" + strings.Title(pkg.Name)
+		pkg.Alias = "ext" + cases.Title(language.AmericanEnglish).String(pkg.Name)
 	}
 
 	if err := r.ReserveGoPackageAlias(pkg.Name, pkg.Path); err != nil {
@@ -226,7 +290,9 @@ func (r *Registry) registerMsg(file *File, outerPath []string, msgs []*descripto
 		}
 		file.Messages = append(file.Messages, m)
 		r.msgs[m.FQMN()] = m
-		glog.V(1).Infof("register name: %s", m.FQMN())
+		if grpclog.V(1) {
+			grpclog.Infof("Register name: %s", m.FQMN())
+		}
 
 		var outers []string
 		outers = append(outers, outerPath...)
@@ -247,14 +313,18 @@ func (r *Registry) registerEnum(file *File, outerPath []string, enums []*descrip
 		}
 		file.Enums = append(file.Enums, e)
 		r.enums[e.FQEN()] = e
-		glog.V(1).Infof("register enum name: %s", e.FQEN())
+		if grpclog.V(1) {
+			grpclog.Infof("Register enum name: %s", e.FQEN())
+		}
 	}
 }
 
 // LookupMsg looks up a message type by "name".
 // It tries to resolve "name" from "location" if "name" is a relative message name.
 func (r *Registry) LookupMsg(location, name string) (*Message, error) {
-	glog.V(1).Infof("lookup %s from %s", name, location)
+	if grpclog.V(1) {
+		grpclog.Infof("Lookup %s from %s", name, location)
+	}
 	if strings.HasPrefix(name, ".") {
 		m, ok := r.msgs[name]
 		if !ok {
@@ -280,7 +350,9 @@ func (r *Registry) LookupMsg(location, name string) (*Message, error) {
 // LookupEnum looks up a enum type by "name".
 // It tries to resolve "name" from "location" if "name" is a relative enum name.
 func (r *Registry) LookupEnum(location, name string) (*Enum, error) {
-	glog.V(1).Infof("lookup enum %s from %s", name, location)
+	if grpclog.V(1) {
+		grpclog.Infof("Lookup enum %s from %s", name, location)
+	}
 	if strings.HasPrefix(name, ".") {
 		e, ok := r.enums[name]
 		if !ok {
@@ -387,7 +459,7 @@ func (r *Registry) ReserveGoPackageAlias(alias, pkgpath string) error {
 
 // GetAllFQMNs returns a list of all FQMNs
 func (r *Registry) GetAllFQMNs() []string {
-	var keys []string
+	keys := make([]string, 0, len(r.msgs))
 	for k := range r.msgs {
 		keys = append(keys, k)
 	}
@@ -396,8 +468,16 @@ func (r *Registry) GetAllFQMNs() []string {
 
 // GetAllFQENs returns a list of all FQENs
 func (r *Registry) GetAllFQENs() []string {
-	var keys []string
+	keys := make([]string, 0, len(r.enums))
 	for k := range r.enums {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (r *Registry) GetAllFQMethNs() []string {
+	keys := make([]string, 0, len(r.meths))
+	for k := range r.meths {
 		keys = append(keys, k)
 	}
 	return keys
@@ -422,18 +502,6 @@ func (r *Registry) IsAllowMerge() bool {
 // SetMergeFileName controls the target OpenAPI file name out of multiple protos
 func (r *Registry) SetMergeFileName(mergeFileName string) {
 	r.mergeFileName = mergeFileName
-}
-
-// SetAllowRepeatedFieldsInBody controls whether repeated field can be used
-// in `body` and `response_body` (`google.api.http` annotation option) field path or not
-func (r *Registry) SetAllowRepeatedFieldsInBody(allow bool) {
-	r.allowRepeatedFieldsInBody = allow
-}
-
-// IsAllowRepeatedFieldsInBody checks if repeated field can be used
-// in `body` and `response_body` (`google.api.http` annotation option) field path or not
-func (r *Registry) IsAllowRepeatedFieldsInBody() bool {
-	return r.allowRepeatedFieldsInBody
 }
 
 // SetIncludePackageInTags controls whether the package name defined in the `package` directive
@@ -494,18 +562,30 @@ func (r *Registry) GetUseJSONNamesForFields() bool {
 }
 
 // SetUseFQNForOpenAPIName sets useFQNForOpenAPIName
+// Deprecated: use SetOpenAPINamingStrategy instead.
 func (r *Registry) SetUseFQNForOpenAPIName(use bool) {
-	r.useFQNForOpenAPIName = use
+	r.openAPINamingStrategy = "fqn"
 }
 
 // GetUseFQNForOpenAPIName returns useFQNForOpenAPIName
+// Deprecated: Use GetOpenAPINamingStrategy().
 func (r *Registry) GetUseFQNForOpenAPIName() bool {
-	return r.useFQNForOpenAPIName
+	return r.openAPINamingStrategy == "fqn"
 }
 
 // GetMergeFileName return the target merge OpenAPI file name
 func (r *Registry) GetMergeFileName() string {
 	return r.mergeFileName
+}
+
+// SetOpenAPINamingStrategy sets the naming strategy to be used.
+func (r *Registry) SetOpenAPINamingStrategy(strategy string) {
+	r.openAPINamingStrategy = strategy
+}
+
+// GetOpenAPINamingStrategy retrieves the naming strategy that is in use.
+func (r *Registry) GetOpenAPINamingStrategy() string {
+	return r.openAPINamingStrategy
 }
 
 // SetUseGoTemplate sets useGoTemplate
@@ -518,6 +598,39 @@ func (r *Registry) GetUseGoTemplate() bool {
 	return r.useGoTemplate
 }
 
+func (r *Registry) SetGoTemplateArgs(kvs []string) {
+	r.goTemplateArgs = make(map[string]string)
+	for _, kv := range kvs {
+		if key, value, found := strings.Cut(kv, "="); found {
+			r.goTemplateArgs[key] = value
+		}
+	}
+}
+
+func (r *Registry) GetGoTemplateArgs() map[string]string {
+	return r.goTemplateArgs
+}
+
+// SetIgnoreComments sets ignoreComments
+func (r *Registry) SetIgnoreComments(ignore bool) {
+	r.ignoreComments = ignore
+}
+
+// GetIgnoreComments returns ignoreComments
+func (r *Registry) GetIgnoreComments() bool {
+	return r.ignoreComments
+}
+
+// SetRemoveInternalComments sets removeInternalComments
+func (r *Registry) SetRemoveInternalComments(remove bool) {
+	r.removeInternalComments = remove
+}
+
+// GetRemoveInternalComments returns removeInternalComments
+func (r *Registry) GetRemoveInternalComments() bool {
+	return r.removeInternalComments
+}
+
 // SetEnumsAsInts set enumsAsInts
 func (r *Registry) SetEnumsAsInts(enumsAsInts bool) {
 	r.enumsAsInts = enumsAsInts
@@ -526,6 +639,29 @@ func (r *Registry) SetEnumsAsInts(enumsAsInts bool) {
 // GetEnumsAsInts returns enumsAsInts
 func (r *Registry) GetEnumsAsInts() bool {
 	return r.enumsAsInts
+}
+
+// SetOmitEnumDefaultValue sets omitEnumDefaultValue
+func (r *Registry) SetOmitEnumDefaultValue(omit bool) {
+	r.omitEnumDefaultValue = omit
+}
+
+// GetOmitEnumDefaultValue returns omitEnumDefaultValue
+func (r *Registry) GetOmitEnumDefaultValue() bool {
+	return r.omitEnumDefaultValue
+}
+
+// SetVisibilityRestrictionSelectors sets the visibility restriction selectors.
+func (r *Registry) SetVisibilityRestrictionSelectors(selectors []string) {
+	r.visibilityRestrictionSelectors = make(map[string]bool)
+	for _, selector := range selectors {
+		r.visibilityRestrictionSelectors[strings.TrimSpace(selector)] = true
+	}
+}
+
+// GetVisibilityRestrictionSelectors retrieves he visibility restriction selectors.
+func (r *Registry) GetVisibilityRestrictionSelectors() map[string]bool {
+	return r.visibilityRestrictionSelectors
 }
 
 // SetDisableDefaultErrors sets disableDefaultErrors
@@ -566,6 +702,16 @@ func (r *Registry) SetOmitPackageDoc(omit bool) {
 // GetOmitPackageDoc returns whether a package comment will be omitted from the generated code
 func (r *Registry) GetOmitPackageDoc() bool {
 	return r.omitPackageDoc
+}
+
+// SetProto3OptionalNullable set proto3OtionalNullable
+func (r *Registry) SetProto3OptionalNullable(proto3OtionalNullable bool) {
+	r.proto3OptionalNullable = proto3OtionalNullable
+}
+
+// GetProto3OptionalNullable returns proto3OtionalNullable
+func (r *Registry) GetProto3OptionalNullable() bool {
+	return r.proto3OptionalNullable
 }
 
 // RegisterOpenAPIOptions registers OpenAPI options
@@ -669,4 +815,63 @@ func (r *Registry) FieldName(f *Field) string {
 		return f.GetJsonName()
 	}
 	return f.GetName()
+}
+
+func (r *Registry) CheckDuplicateAnnotation(httpMethod string, httpTemplate string, svc *Service) error {
+	a := annotationIdentifier{method: httpMethod, pathTemplate: httpTemplate, service: svc}
+	if _, ok := r.annotationMap[a]; ok {
+		return fmt.Errorf("duplicate annotation: method=%s, template=%s", httpMethod, httpTemplate)
+	}
+	r.annotationMap[a] = struct{}{}
+	return nil
+}
+
+// SetDisableServiceTags sets disableServiceTags
+func (r *Registry) SetDisableServiceTags(use bool) {
+	r.disableServiceTags = use
+}
+
+// GetDisableServiceTags returns disableServiceTags
+func (r *Registry) GetDisableServiceTags() bool {
+	return r.disableServiceTags
+}
+
+// SetDisableDefaultResponses setsdisableDefaultResponses
+func (r *Registry) SetDisableDefaultResponses(use bool) {
+	r.disableDefaultResponses = use
+}
+
+// GetDisableDefaultResponses returns disableDefaultResponses
+func (r *Registry) GetDisableDefaultResponses() bool {
+	return r.disableDefaultResponses
+}
+
+// SetUseAllOfForRefs sets useAllOfForRefs
+func (r *Registry) SetUseAllOfForRefs(use bool) {
+	r.useAllOfForRefs = use
+}
+
+// GetUseAllOfForRefs returns useAllOfForRefs
+func (r *Registry) GetUseAllOfForRefs() bool {
+	return r.useAllOfForRefs
+}
+
+// SetAllowPatchFeature sets allowPatchFeature
+func (r *Registry) SetAllowPatchFeature(allow bool) {
+	r.allowPatchFeature = allow
+}
+
+// GetAllowPatchFeature returns allowPatchFeature
+func (r *Registry) GetAllowPatchFeature() bool {
+	return r.allowPatchFeature
+}
+
+// SetPreserveRPCOrder sets preserveRPCOrder
+func (r *Registry) SetPreserveRPCOrder(preserve bool) {
+	r.preserveRPCOrder = preserve
+}
+
+// IsPreserveRPCOrder returns preserveRPCOrder
+func (r *Registry) IsPreserveRPCOrder() bool {
+	return r.preserveRPCOrder
 }

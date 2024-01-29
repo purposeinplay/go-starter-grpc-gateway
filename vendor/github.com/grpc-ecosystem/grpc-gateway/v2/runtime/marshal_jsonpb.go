@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -91,23 +92,48 @@ func (j *JSONPb) marshalNonProtoField(v interface{}) ([]byte, error) {
 
 		if rv.Type().Elem().Implements(protoMessageType) {
 			var buf bytes.Buffer
-			err := buf.WriteByte('[')
-			if err != nil {
+			if err := buf.WriteByte('['); err != nil {
 				return nil, err
 			}
 			for i := 0; i < rv.Len(); i++ {
 				if i != 0 {
-					err = buf.WriteByte(',')
-					if err != nil {
+					if err := buf.WriteByte(','); err != nil {
 						return nil, err
 					}
 				}
-				if err = j.marshalTo(&buf, rv.Index(i).Interface().(proto.Message)); err != nil {
+				if err := j.marshalTo(&buf, rv.Index(i).Interface().(proto.Message)); err != nil {
 					return nil, err
 				}
 			}
-			err = buf.WriteByte(']')
-			if err != nil {
+			if err := buf.WriteByte(']'); err != nil {
+				return nil, err
+			}
+
+			return buf.Bytes(), nil
+		}
+
+		if rv.Type().Elem().Implements(typeProtoEnum) {
+			var buf bytes.Buffer
+			if err := buf.WriteByte('['); err != nil {
+				return nil, err
+			}
+			for i := 0; i < rv.Len(); i++ {
+				if i != 0 {
+					if err := buf.WriteByte(','); err != nil {
+						return nil, err
+					}
+				}
+				var err error
+				if j.UseEnumNumbers {
+					_, err = buf.WriteString(strconv.FormatInt(rv.Index(i).Int(), 10))
+				} else {
+					_, err = buf.WriteString("\"" + rv.Index(i).Interface().(protoEnum).String() + "\"")
+				}
+				if err != nil {
+					return nil, err
+				}
+			}
+			if err := buf.WriteByte(']'); err != nil {
 				return nil, err
 			}
 
@@ -188,8 +214,7 @@ func decodeJSONPb(d *json.Decoder, unmarshaler protojson.UnmarshalOptions, v int
 
 	// Decode into bytes for marshalling
 	var b json.RawMessage
-	err := d.Decode(&b)
-	if err != nil {
+	if err := d.Decode(&b); err != nil {
 		return err
 	}
 
@@ -208,8 +233,7 @@ func decodeNonProtoField(d *json.Decoder, unmarshaler protojson.UnmarshalOptions
 		if rv.Type().ConvertibleTo(typeProtoMessage) {
 			// Decode into bytes for marshalling
 			var b json.RawMessage
-			err := d.Decode(&b)
-			if err != nil {
+			if err := d.Decode(&b); err != nil {
 				return err
 			}
 
@@ -249,6 +273,17 @@ func decodeNonProtoField(d *json.Decoder, unmarshaler protojson.UnmarshalOptions
 		return nil
 	}
 	if rv.Kind() == reflect.Slice {
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			var sl []byte
+			if err := d.Decode(&sl); err != nil {
+				return err
+			}
+			if sl != nil {
+				rv.SetBytes(sl)
+			}
+			return nil
+		}
+
 		var sl []json.RawMessage
 		if err := d.Decode(&sl); err != nil {
 			return err
@@ -288,6 +323,8 @@ type protoEnum interface {
 	fmt.Stringer
 	EnumDescriptor() ([]byte, []int)
 }
+
+var typeProtoEnum = reflect.TypeOf((*protoEnum)(nil)).Elem()
 
 var typeProtoMessage = reflect.TypeOf((*proto.Message)(nil)).Elem()
 

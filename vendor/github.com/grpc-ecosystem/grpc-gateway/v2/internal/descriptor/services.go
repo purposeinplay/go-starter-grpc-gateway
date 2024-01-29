@@ -1,12 +1,13 @@
 package descriptor
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule"
 	options "google.golang.org/genproto/googleapis/api/annotations"
+	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -15,20 +16,26 @@ import (
 // It must be called after loadFile is called for all files so that loadServices
 // can resolve names of message types and their fields.
 func (r *Registry) loadServices(file *File) error {
-	glog.V(1).Infof("Loading services from %s", file.GetName())
+	if grpclog.V(1) {
+		grpclog.Infof("Loading services from %s", file.GetName())
+	}
 	var svcs []*Service
 	for _, sd := range file.GetService() {
-		glog.V(2).Infof("Registering %s", sd.GetName())
+		if grpclog.V(2) {
+			grpclog.Infof("Registering %s", sd.GetName())
+		}
 		svc := &Service{
 			File:                   file,
 			ServiceDescriptorProto: sd,
 			ForcePrefixedName:      r.standalone,
 		}
 		for _, md := range sd.GetMethod() {
-			glog.V(2).Infof("Processing %s.%s", sd.GetName(), md.GetName())
+			if grpclog.V(2) {
+				grpclog.Infof("Processing %s.%s", sd.GetName(), md.GetName())
+			}
 			opts, err := extractAPIOptions(md)
 			if err != nil {
-				glog.Errorf("Failed to extract HttpRule from %s.%s: %v", svc.GetName(), md.GetName(), err)
+				grpclog.Errorf("Failed to extract HttpRule from %s.%s: %v", svc.GetName(), md.GetName(), err)
 				return err
 			}
 			optsList := r.LookupExternalHTTPRules((&Method{Service: svc, MethodDescriptorProto: md}).FQMN())
@@ -39,16 +46,18 @@ func (r *Registry) loadServices(file *File) error {
 				if r.generateUnboundMethods {
 					defaultOpts, err := defaultAPIOptions(svc, md)
 					if err != nil {
-						glog.Errorf("Failed to generate default HttpRule from %s.%s: %v", svc.GetName(), md.GetName(), err)
+						grpclog.Errorf("Failed to generate default HttpRule from %s.%s: %v", svc.GetName(), md.GetName(), err)
 						return err
 					}
 					optsList = append(optsList, defaultOpts)
 				} else {
-					logFn := glog.V(1).Infof
-					if r.warnOnUnboundMethods {
-						logFn = glog.Warningf
+					if grpclog.V(1) {
+						logFn := grpclog.Infof
+						if r.warnOnUnboundMethods {
+							logFn = grpclog.Warningf
+						}
+						logFn("No HttpRule found for method: %s.%s", svc.GetName(), md.GetName())
 					}
-					logFn("No HttpRule found for method: %s.%s", svc.GetName(), md.GetName())
 				}
 			}
 			meth, err := r.newMethod(svc, md, optsList)
@@ -56,11 +65,14 @@ func (r *Registry) loadServices(file *File) error {
 				return err
 			}
 			svc.Methods = append(svc.Methods, meth)
+			r.meths[meth.FQMN()] = meth
 		}
 		if len(svc.Methods) == 0 {
 			continue
 		}
-		glog.V(2).Infof("Registered %s with %d method(s)", svc.GetName(), len(svc.Methods))
+		if grpclog.V(2) {
+			grpclog.Infof("Registered %s with %d method(s)", svc.GetName(), len(svc.Methods))
+		}
 		svcs = append(svcs, svc)
 	}
 	file.Services = svcs
@@ -121,7 +133,9 @@ func (r *Registry) newMethod(svc *Service, md *descriptorpb.MethodDescriptorProt
 			pathTemplate = custom.Path
 
 		default:
-			glog.V(1).Infof("No pattern specified in google.api.HttpRule: %s", md.GetName())
+			if grpclog.V(1) {
+				grpclog.Infof("No pattern specified in google.api.HttpRule: %s", md.GetName())
+			}
 			return nil, nil
 		}
 
@@ -132,7 +146,7 @@ func (r *Registry) newMethod(svc *Service, md *descriptorpb.MethodDescriptorProt
 		tmpl := parsed.Compile()
 
 		if md.GetClientStreaming() && len(tmpl.Fields) > 0 {
-			return nil, fmt.Errorf("cannot use path parameter in client streaming")
+			return nil, errors.New("cannot use path parameter in client streaming")
 		}
 
 		b := &Binding{
@@ -244,9 +258,13 @@ func (r *Registry) newParam(meth *Method, path string) (Parameter, error) {
 	target := fields[l-1].Target
 	switch target.GetType() {
 	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE, descriptorpb.FieldDescriptorProto_TYPE_GROUP:
-		glog.V(2).Infoln("found aggregate type:", target, target.TypeName)
+		if grpclog.V(2) {
+			grpclog.Infoln("found aggregate type:", target, target.TypeName)
+		}
 		if IsWellKnownType(*target.TypeName) {
-			glog.V(2).Infoln("found well known aggregate type:", target)
+			if grpclog.V(2) {
+				grpclog.Infoln("found well known aggregate type:", target)
+			}
 		} else {
 			return Parameter{}, fmt.Errorf("%s.%s: %s is a protobuf message type. Protobuf message types cannot be used as path parameters, use a scalar value type (such as string) instead", meth.Service.GetName(), meth.GetName(), path)
 		}
@@ -259,13 +277,13 @@ func (r *Registry) newParam(meth *Method, path string) (Parameter, error) {
 }
 
 func (r *Registry) newBody(meth *Method, path string) (*Body, error) {
-	msg := meth.RequestType
 	switch path {
 	case "":
 		return nil, nil
 	case "*":
 		return &Body{FieldPath: nil}, nil
 	}
+	msg := meth.RequestType
 	fields, err := r.resolveFieldPath(msg, path, false)
 	if err != nil {
 		return nil, err
@@ -320,13 +338,12 @@ func (r *Registry) resolveFieldPath(msg *Message, path string, isPathParam bool)
 			}
 		}
 
-		glog.V(2).Infof("Lookup %s in %s", c, msg.FQMN())
+		if grpclog.V(2) {
+			grpclog.Infof("Lookup %s in %s", c, msg.FQMN())
+		}
 		f := lookupField(msg, c)
 		if f == nil {
 			return nil, fmt.Errorf("no field %q found in %s", path, root.GetName())
-		}
-		if !(isPathParam || r.allowRepeatedFieldsInBody) && f.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
-			return nil, fmt.Errorf("repeated field not allowed in field path: %s in %s", f.GetName(), path)
 		}
 		if isPathParam && f.GetProto3Optional() {
 			return nil, fmt.Errorf("optional field not allowed in field path: %s in %s", f.GetName(), path)
