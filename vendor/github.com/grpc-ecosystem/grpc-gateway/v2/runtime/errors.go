@@ -38,7 +38,7 @@ func HTTPStatusFromCode(code codes.Code) int {
 	case codes.OK:
 		return http.StatusOK
 	case codes.Canceled:
-		return http.StatusRequestTimeout
+		return 499
 	case codes.Unknown:
 		return http.StatusInternalServerError
 	case codes.InvalidArgument:
@@ -70,10 +70,10 @@ func HTTPStatusFromCode(code codes.Code) int {
 		return http.StatusServiceUnavailable
 	case codes.DataLoss:
 		return http.StatusInternalServerError
+	default:
+		grpclog.Infof("Unknown gRPC error code: %v", code)
+		return http.StatusInternalServerError
 	}
-
-	grpclog.Infof("Unknown gRPC error code: %v", code)
-	return http.StatusInternalServerError
 }
 
 // HTTPError uses the mux-configured error handler.
@@ -108,6 +108,10 @@ func DefaultHTTPErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marsh
 	contentType := marshaler.ContentType(pb)
 	w.Header().Set("Content-Type", contentType)
 
+	if s.Code() == codes.Unauthenticated {
+		w.Header().Set("WWW-Authenticate", s.Message())
+	}
+
 	buf, merr := marshaler.Marshal(pb)
 	if merr != nil {
 		grpclog.Infof("Failed to marshal error message %q: %v", s, merr)
@@ -133,7 +137,7 @@ func DefaultHTTPErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marsh
 	doForwardTrailers := requestAcceptsTrailers(r)
 
 	if doForwardTrailers {
-		handleForwardResponseTrailerHeader(w, md)
+		handleForwardResponseTrailerHeader(w, mux, md)
 		w.Header().Set("Transfer-Encoding", "chunked")
 	}
 
@@ -148,7 +152,7 @@ func DefaultHTTPErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marsh
 	}
 
 	if doForwardTrailers {
-		handleForwardResponseTrailer(w, md)
+		handleForwardResponseTrailer(w, mux, md)
 	}
 }
 
@@ -158,10 +162,11 @@ func DefaultStreamErrorHandler(_ context.Context, err error) *status.Status {
 
 // DefaultRoutingErrorHandler is our default handler for routing errors.
 // By default http error codes mapped on the following error codes:
-//   NotFound -> grpc.NotFound
-//   StatusBadRequest -> grpc.InvalidArgument
-//   MethodNotAllowed -> grpc.Unimplemented
-//   Other -> grpc.Internal, method is not expecting to be called for anything else
+//
+//	NotFound -> grpc.NotFound
+//	StatusBadRequest -> grpc.InvalidArgument
+//	MethodNotAllowed -> grpc.Unimplemented
+//	Other -> grpc.Internal, method is not expecting to be called for anything else
 func DefaultRoutingErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, r *http.Request, httpStatus int) {
 	sterr := status.Error(codes.Internal, "Unexpected routing error")
 	switch httpStatus {
