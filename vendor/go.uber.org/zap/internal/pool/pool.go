@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2023 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package zapcore
+// Package pool provides internal pool utilities.
+package pool
 
-import "time"
+import (
+	"sync"
+)
 
-// DefaultClock is the default clock used by Zap in operations that require
-// time. This clock uses the system clock for all operations.
-var DefaultClock = systemClock{}
-
-// Clock is a source of time for logged entries.
-type Clock interface {
-	// Now returns the current local time.
-	Now() time.Time
-
-	// NewTicker returns *time.Ticker that holds a channel
-	// that delivers "ticks" of a clock.
-	NewTicker(time.Duration) *time.Ticker
+// A Pool is a generic wrapper around [sync.Pool] to provide strongly-typed
+// object pooling.
+//
+// Note that SA6002 (ref: https://staticcheck.io/docs/checks/#SA6002) will
+// not be detected, so all internal pool use must take care to only store
+// pointer types.
+type Pool[T any] struct {
+	pool sync.Pool
 }
 
-// systemClock implements default Clock that uses system time.
-type systemClock struct{}
-
-func (systemClock) Now() time.Time {
-	return time.Now()
+// New returns a new [Pool] for T, and will use fn to construct new Ts when
+// the pool is empty.
+func New[T any](fn func() T) *Pool[T] {
+	return &Pool[T]{
+		pool: sync.Pool{
+			New: func() any {
+				return fn()
+			},
+		},
+	}
 }
 
-func (systemClock) NewTicker(duration time.Duration) *time.Ticker {
-	return time.NewTicker(duration)
+// Get gets a T from the pool, or creates a new one if the pool is empty.
+func (p *Pool[T]) Get() T {
+	return p.pool.Get().(T)
+}
+
+// Put returns x into the pool.
+func (p *Pool[T]) Put(x T) {
+	p.pool.Put(x)
 }
