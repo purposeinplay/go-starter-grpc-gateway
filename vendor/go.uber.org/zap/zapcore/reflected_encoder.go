@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,29 +20,22 @@
 
 package zapcore
 
-import "time"
+import (
+	"encoding/json"
+	"io"
+)
 
-// DefaultClock is the default clock used by Zap in operations that require
-// time. This clock uses the system clock for all operations.
-var DefaultClock = systemClock{}
-
-// Clock is a source of time for logged entries.
-type Clock interface {
-	// Now returns the current local time.
-	Now() time.Time
-
-	// NewTicker returns *time.Ticker that holds a channel
-	// that delivers "ticks" of a clock.
-	NewTicker(time.Duration) *time.Ticker
+// ReflectedEncoder serializes log fields that can't be serialized with Zap's
+// JSON encoder. These have the ReflectType field type.
+// Use EncoderConfig.NewReflectedEncoder to set this.
+type ReflectedEncoder interface {
+	// Encode encodes and writes to the underlying data stream.
+	Encode(interface{}) error
 }
 
-// systemClock implements default Clock that uses system time.
-type systemClock struct{}
-
-func (systemClock) Now() time.Time {
-	return time.Now()
-}
-
-func (systemClock) NewTicker(duration time.Duration) *time.Ticker {
-	return time.NewTicker(duration)
+func defaultReflectedEncoder(w io.Writer) ReflectedEncoder {
+	enc := json.NewEncoder(w)
+	// For consistency with our custom JSON encoder.
+	enc.SetEscapeHTML(false)
+	return enc
 }
